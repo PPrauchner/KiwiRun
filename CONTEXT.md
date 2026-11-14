@@ -55,11 +55,11 @@ A fruta, que é Item de exportação; nunca chamada só de "kiwi" para não conf
 _Avoid_: kiwi (para a fruta)
 
 **Tempo final**:
-O tempo gasto na Fase menos um desconto por Item e por Samambaia-prateada coletados; o número que decide o Recorde.
-_Avoid_: pontuação, score
+O tempo gasto na Fase menos um desconto por Item, por Samambaia-prateada e por Captura; o número que decide o Recorde.
+_Avoid_: pontuação, score, tempo cru
 
 **Placar**:
-O resultado mostrado ao fim de uma Fase: tempo gasto, Itens coletados, Fatos encontrados e o Tempo final.
+O resultado mostrado ao fim de uma Fase: tempo gasto, Itens coletados, Capturas, Fatos encontrados e o Tempo final.
 _Avoid_: score, pontuação
 
 **Recorde**:
