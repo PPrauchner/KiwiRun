@@ -58,6 +58,10 @@ _Avoid_: estrela, segredo, silver fern
 Uma frase curta e verdadeira sobre a Nova Zelândia, ligada ao Assunto, revelada por uma Samambaia-prateada.
 _Avoid_: curiosidade (é nome de Assunto), dica, trivia
 
+**Placa**:
+Um aviso fixo no cenário, no início de uma Fase, que ensina um controle com o ícone do botão e uma frase curta; não pausa o jogo.
+_Avoid_: tutorial, dica (não confundir com Fato)
+
 **Kiwifruta**:
 A fruta, que é Item de exportação; nunca chamada só de "kiwi" para não confundir com o Kiwi.
 _Avoid_: kiwi (para a fruta)
@@ -119,5 +123,5 @@ Quem joga no notebook ao lado da apresentação; uma sessão de visitante termin
 _Avoid_: usuário, player
 
 **Volta por inatividade**:
-O retorno automático à tela inicial após cerca de 60 s sem input, que encerra a sessão do Visitante e restaura o PT.
+O retorno automático à tela inicial após cerca de 60 s sem input, anunciado por um aviso nos últimos segundos, que encerra a sessão do Visitante e restaura o PT.
 _Avoid_: timeout, reset
