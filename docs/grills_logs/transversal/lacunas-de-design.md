@@ -184,3 +184,23 @@ a sugestão do Claude e entra no PRD ao fim da sessão.
 - **Iniciais no teclado:** setas e Enter, como no controle; digitar letras A–Z também preenche a posição atual e avança.
 - **Versão na tela inicial:** lida de uma constante no código; um teste falha se ela diferir da versão do `package.json`.
 - **PRD consolidado:** ao incorporar esta sessão, o PRD reorganiza as decisões dos grills por tema (sem seções por sessão) e renumera as histórias, antes do `/ti`.
+
+## Sessão — 2026-11-14 16:52
+
+Sexta rodada de lacunas: input das Iniciais, tempo de referência do teto de desconto,
+precisão do Recorde, entrada na Fase, contato por baixo com Predador e o material do
+Assunto. Só vão a pergunta as decisões que dependem do autor; o resto segue a
+sugestão do Claude e entra no PRD ao fim da sessão.
+
+**P:** Os Fatos são validados contra `docs/assuntos/economia-tecnologia.md`, que ainda não existe, e "Fase pronta" da Pecuária (marco de 20/11) exige 3 Fatos validados. Quem escreve esse material e até quando?
+**R:** O autor escreve o Markdown do seu Assunto até 19/11. O Claude pesquisa e redige os Fatos com fonte, e o autor os valida contra esse material. Novo marco: 19/11, `docs/assuntos/economia-tecnologia.md` entregue.
+
+## Defaults assumidos sem pergunta (contestáveis) — sessão 16:52
+
+- **Iniciais no teclado:** nesta tela, A–Z só digitam letra; WASD deixa de mover o cursor e M deixa de silenciar (o Select do controle segue silenciando). Setas, Enter, Espaço e Esc funcionam como antes.
+- **Tempo de referência:** é a passada mais rápida do autor pegando todos os Itens, Samambaias-prateadas e Predadores da Fase (não o tempo de um novato). Antes do playtest, o catálogo traz um valor provisório estimado pelo comprimento do percurso, e o teste do teto roda contra ele; o valor medido o substitui no playtest.
+- **Precisão do Recorde:** Tempo final arredondado para décimos assim que a Fase termina, e é esse valor (inteiro em décimos) que se grava, se compara e se exibe. Empate em décimos não é Novo Recorde.
+- **Entrada na Fase:** a Fase (ao entrar pelo Menu, por "Jogar de novo", "Próxima Fase" ou "reiniciar a Fase") também ignora input por ~0,5 s e exige aperto novo. Só mover ou pular conta como primeiro input: Start/Esc abre a Pausa e Select/M silencia sem descongelar a Fase nem iniciar o cronômetro.
+- **Contato com Predador:** só cair sobre ele (Kiwi descendo, por cima) é Captura; qualquer outro contato — lateral ou por baixo — leva ao Checkpoint.
+- **"???" no Placar:** os Fatos não encontrados aparecem como "???" com um convite curto a achar a Samambaia-prateada (decidido na sessão 16:07 e perdido na consolidação).
+- **8BitDo:** o checklist recomenda USB-C em modo XInput (decidido na sessão 15:54 e perdido na consolidação).
