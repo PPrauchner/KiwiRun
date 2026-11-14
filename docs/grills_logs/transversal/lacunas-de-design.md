@@ -81,3 +81,31 @@ ao fim da sessão.
 - **Esmagamento:** trajetos de guindastes desenhados sem vão de esmagamento; se o Kiwi ficar preso numa plataforma móvel, volta ao Checkpoint sem custo além do tempo.
 - **Controle desconectado** durante a Fase abre a Pausa.
 - **Scripts geradores** em Node, com as saídas versionadas; sem teste de "saída atualizada" (o `.tmj` é a fonte depois do rascunho).
+
+## Sessão — 2026-11-14 16:22
+
+Terceira rodada de lacunas: lançador, energia, atalhos, celular, formatação, fonte e
+contrato do Tiled. Só vão a pergunta as decisões que dependem do autor; o resto segue
+a sugestão do Claude e entra no PRD ao fim da sessão.
+
+**P:** O QR code do último slide leva ao celular, mas o jogo não aceita toque. O que fazer com o celular?
+**R:** Mantém o QR. Em aparelho de toque, a tela inicial mostra "Jogue no computador" (PT/EN) com o link; nada de controles de toque agora (resposta confirmada depois). Botões na tela ficam como possível trabalho depois do evento.
+
+## Defaults assumidos sem pergunta (contestáveis) — sessão 16:22
+
+- **Lançador sem kiosk:** o `--kiosk` do Edge roda em InPrivate e apaga o `localStorage` ao sair. O `jogar.bat` usa `--start-fullscreen` com `--user-data-dir` dedicado, `--no-first-run`, `--hide-crash-restore-bubble` e `--autoplay-policy=no-user-gesture-required`. Na tela cheia do navegador o Esc chega ao jogo; sair com Alt+F4. Conferir no notebook do evento (Recorde sobrevive a fechar e reabrir; Esc não sai da tela cheia) antes de fechar o lançador.
+- **Energia:** o jogo pede a Screen Wake Lock (tela não apaga com o jogo aberto, inclusive em `localhost`), e o checklist do dia inclui plano de energia "nunca suspender" na tomada.
+- **Zerar Recordes:** só no teclado, segurando Shift+Backspace por 3 s na tela inicial (o apresentador sempre tem o teclado). Sai o L+R+Start, que colidia com o Start que começa o jogo. A tela confirma com uma mensagem curta.
+- **Start e Esc:** Start confirma em toda tela de menu (tela inicial, Menu, Placar) e pausa/continua na Fase; Esc volta (ou pausa/continua na Fase). No controle, voltar é a opção "Voltar" de cada menu. Substitui "Start/Esc no menu também volta" e "Start/Esc no Placar vai ao Menu" (no Placar, Esc vai ao Menu).
+- **Indicador de silêncio:** ícone de som cortado num canto, em toda cena, enquanto o silêncio estiver ligado.
+- **Tempo:** abaixo de 60 s, "42,3 s" / "42.3 s"; a partir de 60 s, "1:15,3" / "1:15.3".
+- **Fato:** até 2 linhas na faixa do topo e na lista do Placar; o limite de 90 caracteres continua, e o teste também confere que cada Fato cabe em 2 linhas com a largura da fonte.
+- **Fonte bitmap:** procurar uma fonte pixel CC0 com acentos e `ā`; se não houver, gerada por script como os sprites (asset próprio, mesma regra). Decidida antes do primeiro texto.
+- **Contrato do Tiled:** camadas `fundo` (decoração, sem colisão), `colisao`, `frente` (desenhada sobre o Kiwi, sem colisão; esconde a 3ª Samambaia-prateada) e a camada de objetos. Tiles atravessáveis por baixo marcados por propriedade no tileset. Patrulha e trajeto como propriedades de distância/direção no objeto; esteira com propriedade de sentido. O Validador exige mapa finito, tilesets embutidos e dados de camada sem compressão (o Phaser não lê tileset externo).
+- **`localStorage`:** chaves com prefixo `kiwirun:` e versão de esquema (`kiwirun:v1:...`); mudar os descontos depois do playtest sobe a versão e descarta Recordes incomparáveis. Necessário porque a origem do GitHub Pages é compartilhada entre os repositórios do autor.
+- **Antes do primeiro input:** a Fase fica congelada (Predadores e plataformas parados) até o primeiro input, junto com o cronômetro.
+- **MIME do `jogar.bat`:** também `.html`, `.css` e o formato da fonte bitmap (`.xml`/`.fnt`).
+- **Música:** tela inicial, Menu e Placar tocam o tema no andamento base; a música só reinicia ao trocar de andamento (entrar ou sair de uma Fase).
+- **Captura:** o Kiwi quica ao capturar; segurar o pulo deixa o quique mais alto.
+- **Termos em Māori:** "Kia ora!" na tela inicial e "Aotearoa" no título do Menu, nos dois idiomas.
+- **Escala:** mantém FIT (3× exato no notebook do evento); escala inteira não é exigida no Pages.
