@@ -53,6 +53,9 @@ Não precisa de slide, imagem nem arte: o jogo gera a própria arte por script.
 ## Exemplo
 
 [`economia-tecnologia.md`](economia-tecnologia.md): o Assunto do autor, com os
-Fatos candidatos das Fases Pecuária, Porto e Foguete na seção 10.
+Fatos candidatos das Fases Pecuária, Porto e Foguete na seção 10. É um exemplo de
+conteúdo, não de formato: foi escrito antes do Modelo, não usa as seções `## Tema` e
+`## Fatos candidatos` e a tabela dele tem a coluna "Seção" no lugar da coluna EN.
+Para entregar, siga o Modelo acima.
 `economia-tecnologia.en.md` é o mesmo material em inglês, como referência para os
 Fatos em EN.
