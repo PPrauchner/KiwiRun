@@ -39,3 +39,45 @@ entra no PRD ao fim da sessão (seção "Defaults assumidos").
 - **CI:** GitHub Actions roda `npm test`; o deploy no Pages só acontece com a suíte verde.
 - **Validador de Fase** também confere: Itens e espécies existentes no catálogo, chaves de Fato sem repetição, objetos dentro do mapa, e que o mapa de cada Fase do catálogo existe.
 
+
+## Sessão — 2026-11-14 16:07
+
+Segunda rodada de lacunas, encontradas depois da primeira revisão. Só vão a pergunta
+as decisões que dependem do autor; o resto segue a sugestão do Claude e entra no PRD
+ao fim da sessão.
+
+**P:** Como garantir que o visitante veja ao menos um Fato, se as Samambaias-prateadas são escondidas?
+**R:** Escada de dificuldade: a 1ª Samambaia-prateada fica no caminho principal (impossível perder), a 2ª fora do caminho mas visível, a 3ª escondida de verdade. O Placar mostra os Fatos não encontrados como "???" com convite a achar a Samambaia-prateada. "Fase pronta" ganha: no playtest, quem não conhece o jogo vê ao menos 1 Fato.
+
+**P:** O silêncio (M / Select) sobrevive à volta por inatividade e entre aberturas do lançador?
+**R:** Sim: o mudo é escolha do apresentador, não do visitante. Persiste no `localStorage`, sobrevive à volta por inatividade e entre aberturas do `jogar.bat`. O atalho de zerar Recordes passa a ser L+R+Start (Select já silencia), mantido Shift+Backspace no teclado.
+
+**P:** Quais datas disparam os cortes?
+**R:** Marcos sugeridos, não obrigatórios (o autor pode adiantar tudo): 20/11 Pecuária pronta (senão cortes 1–2); 22/11 os 9 Fatos validados contra os slides e congelados; 24/11 Porto pronto (senão Foguete sai ou fica sem a decolagem); 26/11 Foguete pronto; 27/11 congelamento — só correções e teste do `jogar.bat` offline no notebook do evento. Servem como ponto de checagem: se um marco passar sem estar pronto, o corte correspondente é reavaliado.
+
+**P:** Quem é a fonte da verdade de um mapa de Fase: o script gerador ou o `.tmj`?
+**R:** O script gera o rascunho da Fase uma vez; dali em diante o `.tmj` versionado é a fonte da verdade, editado à mão (Tiled ou Claude). O gerador recusa sobrescrever um `.tmj` existente sem `--force`. Calibragem de playtest é feita direto no `.tmj`.
+
+**P:** O que se sabe do notebook do evento?
+**R:** É o notebook do autor: Lenovo LOQ 15IRH8 (RTX 2050), tela 1920×1080 a 60 Hz (16:9, sem barras). Navegadores encontrados: Edge e Brave; o Chrome não está instalado (só o Chromium do Playwright). Decorre: o `jogar.bat` usa o Edge (Chromium, sempre presente no Windows), com fallback para Chrome se existir; Brave fica de fora (Shields podem interferir). A física roda em passo fixo de 60/s mesmo assim. Teste no notebook real já no marco de 20/11.
+
+**P:** O que significa o corte nº 4, "comportamento distinto por espécie de Predador"?
+**R:** Um traço por espécie, ligado ao animal real: rato — patrulha rápida e curta; arminho — patrulha normal com um pulinho quando o Kiwi se aproxima; gambá-australiano — lento, patrulha em plataformas altas/galhos. Até o corte, todos patrulham entre dois pontos; se cortado, diferem só no visual.
+
+## Defaults assumidos sem pergunta (contestáveis) — sessão 16:07
+
+- **Idioma:** só em memória durante a sessão; o jogo sempre abre em PT. Sai do `localStorage` (que guarda só Recordes e o mudo).
+- **Fase "em breve":** o catálogo pode marcar uma Fase como "em breve" (visível, não selecionável, sem mapa exigido pelo Validador). É assim que se corta Porto/Foguete.
+- **Placar (todas as Fases):** "Próxima Fase" (se houver uma disponível), "Jogar de novo" e "Menu". Start/Esc no Placar vai ao Menu. Na última Fase disponível, só "Jogar de novo" e "Menu".
+- **Tamanho do Fato:** no máximo 90 caracteres por idioma, conferido por teste; cabe numa faixa abaixo do HUD e na lista do Placar.
+- **Chaves de Fato:** o catálogo é a fonte; o Validador confere que as chaves das Samambaias-prateadas do mapa coincidem exatamente com as do catálogo para aquela Fase.
+- **Recorde:** a primeira conclusão de uma Fase é "Novo Recorde"; o menu mostra "—" para Fase sem Recorde.
+- **Números:** Tempo formatado por idioma pelo módulo Textos (PT "42,3 s", EN "42.3 s").
+- **Smoke:** `npm run smoke`, fora do `npm test` (que o hook roda a cada commit). O CI instala o Chromium e roda os dois; o deploy só acontece com ambos verdes.
+- **Sprites que faltavam:** lã, leite e caixa de exportação gerados por script; contêiner, guindaste e esteira do Kenney Industrial Expansion (gerados por script se faltar algum).
+- **Inatividade:** só conta como input mudança de botão ou eixo fora da zona morta (analógico com deriva não segura o jogo). Vale em qualquer cena, inclusive o Placar.
+- **`jogar.bat`:** Edge (Chrome se existir), via `powershell -ExecutionPolicy Bypass`; porta fixa (o `localStorage` depende da origem) — se ocupada, mensagem clara e encerra; tipos MIME de `.js`, `.json`, `.tmj`, `.png`, `.ogg`; o servidor encerra quando o navegador fecha.
+- **Física:** passo fixo de 60/s.
+- **Esmagamento:** trajetos de guindastes desenhados sem vão de esmagamento; se o Kiwi ficar preso numa plataforma móvel, volta ao Checkpoint sem custo além do tempo.
+- **Controle desconectado** durante a Fase abre a Pausa.
+- **Scripts geradores** em Node, com as saídas versionadas; sem teste de "saída atualizada" (o `.tmj` é a fonte depois do rascunho).
