@@ -71,14 +71,48 @@ O Tempo gasto menos um desconto por Item, por Samambaia-prateada e por Captura; 
 _Avoid_: pontuação, score
 
 **Placar**:
-O resultado mostrado ao fim de uma Fase: tempo gasto, Itens coletados, Capturas, Fatos encontrados e o Tempo final.
+O resultado mostrado ao fim de uma Fase: Tempo gasto, Itens coletados, Capturas, descontos, Fatos encontrados e o Tempo final.
 _Avoid_: score, pontuação
 
 **Recorde**:
-O menor Tempo final já registrado numa Fase naquele computador, mostrado no menu.
+O menor Tempo final já registrado numa Fase naquele computador, com as Iniciais de quem o fez, mostrado no menu.
 _Avoid_: high score, melhor pontuação
 
+**Novo Recorde**:
+Um Tempo final estritamente menor que o Recorde da Fase (ou a primeira conclusão dela); empate não conta.
+_Avoid_: high score
+
+**Iniciais**:
+As 3 letras (A–Z) que o Visitante digita ao fazer um Novo Recorde e que aparecem ao lado do Recorde.
+_Avoid_: nome, apelido, tag
+
+### Telas
+
+**Tela inicial**:
+A primeira tela ("aperte um botão"), com o seletor PT | EN; destino da Volta por inatividade.
+_Avoid_: title screen, splash
+
+**Menu**:
+A tela única que lista os Mundos e as Fases do Mundo selecionado, com o Recorde de cada Fase.
+_Avoid_: seleção de fase, level select
+
+**Pausa**:
+O menu aberto durante uma Fase (continuar, reiniciar a Fase, Controles, voltar ao Menu), que congela o jogo e o cronômetro.
+_Avoid_: pause screen
+
+**Créditos**:
+A tela, acessível pelo Menu, com o grupo, as licenças de arte e código e as fontes dos Fatos.
+_Avoid_: sobre, about
+
 ### No evento
+
+**Apresentador**:
+O autor no dia do evento, que abre o lançador, controla o Silêncio e zera os Recordes; não é um Visitante.
+_Avoid_: admin, operador
+
+**Silêncio**:
+O estado em que todo som do jogo está desligado (M ou Select); escolha do Apresentador, que persiste entre Visitantes.
+_Avoid_: mute, mudo
 
 **Visitante**:
 Quem joga no notebook ao lado da apresentação; uma sessão de visitante termina na Volta por inatividade.
