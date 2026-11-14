@@ -142,3 +142,45 @@ dependem do autor; o resto segue a sugestão do Claude e entra no PRD ao fim da 
 - **Reiniciar Fase** zera cronômetro, Itens, Samambaias-prateadas, Capturas e Checkpoints, e devolve os Predadores.
 - **Fatos na Pausa:** a fila e o tempo de exibição param junto com o jogo. Os ~4 s por Fato são calibrados no playtest (90 caracteres podem pedir mais).
 - **HUD de Itens:** um contador "X/Y" somando os tipos de Item da Fase; Samambaias-prateadas em "X/3".
+
+## Sessão — 2026-11-14 16:39
+
+Quinta rodada de lacunas: input entre telas, ensino dos controles fora da Pecuária,
+nomes de Itens e Predadores, fechamento do lançador, aviso de inatividade e o papel do
+notebook do evento. Só vão a pergunta as decisões que dependem do autor; o resto segue
+a sugestão do Claude e entra no PRD ao fim da sessão.
+
+**P:** O aperto de pulo do fim da Fase pode atravessar para a tela seguinte e confirmar as Iniciais ou uma opção do Placar sem querer. Como evitar?
+**R:** Toda tela nova (Iniciais, Placar, Pausa, Menu) ignora input por ~0,5 s e depois só aceita um aperto novo (botão que vinha segurado precisa ser solto). No Placar, a opção pré-selecionada é "Jogar de novo". Nas Iniciais, ↑↓ trocam a letra e ←→ a posição; o botão frontal/Enter confirma a letra atual e avança, e na terceira grava; Esc volta uma letra (na primeira, nada). Não há como pular as Iniciais.
+
+**P:** As placas de controle só existem na Pecuária, mas o Menu permite ir direto ao Foguete. Como quem começa por outra Fase aprende os controles?
+**R:** Placas curtas no início do Porto e do Foguete, no mesmo sistema da Pecuária (objeto do mapa, sem tela nova): ícone do botão + uma frase sobre o que aquela Fase exige — Porto: pular nos Predadores; Foguete: segurar para pular mais alto. A Pecuária mantém o tutorial completo. Rejeitada: tela "Controles" na primeira entrada em cada Fase (trava a fila).
+
+**P:** Os nomes dos Predadores e dos Itens não aparecem em lugar nenhum (HUD soma "X/Y", Placar só conta). Como o visitante aprende o que coletou e capturou?
+**R:** O Placar lista Itens por tipo ("Lã 5/8") e Capturas por espécie ("Arminho ×2"), com os nomes nos arquivos PT/EN. O HUD mantém o total "X/Y". Na Captura, um rótulo curto com o nome da espécie flutua sobre o Predador por ~1 s, fora da fila de Fatos e sem pausar. Um Fato sobre o Predator Free 2050 fica de fora por enquanto.
+
+**P:** O `jogar.bat` não detecta com segurança o fechamento do Edge (instância já aberta, inicialização rápida, segundo plano). Como o servidor encerra?
+**R:** O servidor deixa de depender do navegador: uma janela de console visível (minimizada) é o servidor, e fechá-la encerra. Fechar o Edge não derruba nada; rodar o `.bat` de novo com a porta já ocupada pelo próprio KiwiRun só reabre o navegador (porta ocupada por outro programa continua sendo erro claro). Endereço fixo `http://localhost:<porta>`, nunca `127.0.0.1` (outra origem, outro `localStorage`). Substitui "o servidor encerra quando o navegador fecha".
+
+**P:** A Volta por inatividade chega sem aviso (Pausa, Créditos, Placar) e é a única forma de encerrar a sessão do Visitante. Como fica?
+**R:** Nos últimos 10 s, um aviso "Ainda está aí? 10… 9…" (PT/EN) no centro da tela, em toda cena menos a Tela inicial; qualquer input o cancela. Prazo único de 60 s em todas as cenas. O próximo Visitante que chega antes dos 60 s herda idioma e tela — aceito, sem atalho de "encerrar sessão" para o Apresentador.
+
+**P:** O PRD fala em validar os Fatos "contra os slides" e em "QR code no último slide". Existem slides?
+**R:** Não — o autor nunca mencionou slides; a premissa entrou nos grills por suposição do Claude. O material de referência de cada Assunto será entregue em Markdown, na pasta `docs/`, um arquivo por tópico. Os Fatos são validados contra esse material (e as fontes) em vez de slides; histórias 42, 43 e 50 e o marco de 22/11 são corrigidos.
+
+**P:** No dia, o notebook do jogo também é usado na apresentação (projetor, outra tela)? E onde fica o QR code, já que não há slides?
+**R:** O notebook fica só com o jogo, sem projetor. O QR code vai numa folha impressa ao lado do notebook; o autor cuida dela depois, fora do escopo do jogo.
+
+## Defaults assumidos sem pergunta (contestáveis) — sessão 16:39
+
+- **Material dos Assuntos:** um Markdown por Assunto em `docs/assuntos/<assunto>.md` (ex.: `economia-tecnologia.md`); é a referência contra a qual o autor valida os Fatos.
+- **Módulos de lógica pura novos:** Cronômetro (início no primeiro input, pausa, fim, reinício), Fila de Fatos (~4 s cada, para na Pausa), Inatividade (mudança de botão ou eixo fora da zona morta, aviso nos últimos 10 s, 60 s) e Iniciais (letra, posição, confirmação por letra, "---"). Testados em Node como os demais; o Catálogo de Mundos ganha testes próprios (Fases "em breve", chaves de Fato, Itens e espécies declarados).
+- **Teto de desconto:** o catálogo guarda um tempo de referência por Fase (medido no playtest); um teste falha se o desconto máximo possível da Fase (todos os Itens, Samambaias-prateadas e Predadores do mapa) passar de 50% desse tempo. Evita Recorde travado em 0,0.
+- **Câmera:** segue o Kiwi com zona morta, presa aos limites do mapa; olha um pouco à frente na direção do movimento e, no Foguete, um pouco acima. O parallax rola só na horizontal; na Fase vertical o fundo acompanha a câmera com fator pequeno.
+- **Checklist do dia** em `docs/checklist-do-evento.md`, única casa dos itens espalhados: USB-C do 8BitDo, "Não perturbe", plano de energia "nunca suspender" na tomada, Edge fora do modo de eficiência, checkout da `v1.0.0`, zerar Recordes do playtest, conferir o Silêncio, teste offline do `jogar.bat`, notebook sem projetor.
+- **Checkpoint no Validador:** o início conta como o primeiro Checkpoint; o Validador exige início e fim, e objetos Checkpoint adicionais são exigidos só pela regra dos ~20 s, conferida no playtest.
+- **Alcance do pulo após edição manual:** sem checagem automática de vãos no `.tmj`; o playtest de "Fase pronta" cobre.
+- **Invulnerabilidade:** durante o ~1 s piscando, o contato lateral com Predador atravessa sem efeito, e pular sobre ele ainda captura. Ovelhas são sólidas só por cima (plataforma de mão única); pelos lados o Kiwi as atravessa.
+- **Iniciais no teclado:** setas e Enter, como no controle; digitar letras A–Z também preenche a posição atual e avança.
+- **Versão na tela inicial:** lida de uma constante no código; um teste falha se ela diferir da versão do `package.json`.
+- **PRD consolidado:** ao incorporar esta sessão, o PRD reorganiza as decisões dos grills por tema (sem seções por sessão) e renumera as histórias, antes do `/ti`.
