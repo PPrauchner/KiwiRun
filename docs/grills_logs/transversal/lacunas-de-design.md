@@ -109,3 +109,36 @@ a sugestão do Claude e entra no PRD ao fim da sessão.
 - **Captura:** o Kiwi quica ao capturar; segurar o pulo deixa o quique mais alto.
 - **Termos em Māori:** "Kia ora!" na tela inicial e "Aotearoa" no título do Menu, nos dois idiomas.
 - **Escala:** mantém FIT (3× exato no notebook do evento); escala inteira não é exigida no Pages.
+
+## Sessão — 2026-11-14 16:32
+
+Quarta rodada de lacunas: identidade do Recorde, ensino dos controles, créditos,
+layout do Menu, medidas do pulo e operação no dia. Só vão a pergunta as decisões que
+dependem do autor; o resto segue a sugestão do Claude e entra no PRD ao fim da sessão.
+
+**P:** O menu mostra só um tempo por Fase, sem dizer de quem é o Recorde. Como fica?
+**R:** Iniciais de 3 letras. Ao bater o Recorde, o Visitante digita 3 letras (D-pad/setas trocam a letra e a posição, botão frontal/Enter confirma); o menu mostra "ABC 42,3 s". Um Recorde por Fase, sem top 3.
+
+**P:** Como o Visitante descobre os controles (captura pulando em cima, pulo mais alto segurando, WASD/Espaço)?
+**R:** Placas no cenário no início da Pecuária (ícone do botão/tecla + texto curto, mais um Predador sozinho em chão plano) e uma opção "Controles" na Pausa, com os controles do 8BitDo e do teclado.
+
+**P:** Onde o jogador vê os créditos e as fontes dos Fatos?
+**R:** Numa tela "Créditos" acessível pelo Menu: o grupo e a apresentação, Kenney (CC0), Phaser e as fontes dos Fatos de cada Fase.
+
+**P:** Com só um Mundo jogável, qual o layout do Menu?
+**R:** Tela única: Mundos numa coluna à esquerda, Fases do Mundo selecionado (com Recorde) à direita; o cursor já abre em Economia/Tecnologia › Pecuária.
+
+## Defaults assumidos sem pergunta (contestáveis) — sessão 16:32
+
+- **Iniciais:** só A–Z, começam em "AAA"; a tela de iniciais vem antes do Placar e só aparece quando há Novo Recorde. O Tempo final é gravado assim que a Fase termina; se a Volta por inatividade chegar durante as iniciais, o Recorde fica com "---". O `localStorage` guarda tempo e iniciais por Fase (`kiwirun:v1:...`). Iniciais indesejadas se resolvem zerando os Recordes.
+- **Créditos:** textos nos arquivos PT/EN; as fontes vêm do arquivo de fontes dos Fatos (mesma origem do teste). Os nomes do grupo entram se os colegas autorizarem; senão, "Grupo da apresentação sobre a Nova Zelândia".
+- **Medidas do movimento:** altura e alcance máximos do pulo (curto e segurado), em tiles, fixados num arquivo de constantes que a física e o gerador de mapas leem; o gerador não cria vão nem degrau acima delas. Coyote time e jump buffer de ~0,1 s. Física Arcade do Phaser; tile atravessável por baixo é plataforma de mão única. Hitbox do Kiwi menor que o sprite.
+- **Checkpoints:** no máximo ~20 s de percurso entre dois, e um antes de cada trecho difícil (playtest confere).
+- **Música:** sintetizada por script num `.wav` em loop (mono, taxa baixa), que repete sem silêncio, ao contrário de `.ogg`/`.mp3`; o MIME do `jogar.bat` inclui `.wav`. Efeitos sonoros de um pacote de áudio Kenney CC0 (o Pixel Platformer não traz áudio), em `.ogg`.
+- **Aviso de toque:** só quando não há ponteiro fino (`any-pointer: fine` falso), para não barrar notebook com tela de toque; qualquer tecla segue mesmo assim.
+- **Perda de foco** (Alt+Tab, notificação) durante a Fase abre a Pausa, como o controle desconectado. O checklist do dia inclui o "Não perturbe" do Windows ligado.
+- **Versão do evento:** no congelamento (27/11), tag `v1.0.0` e checkout dela no notebook; a versão aparece discreta num canto da tela inicial.
+- **Licença:** LICENSE MIT para o código do repositório; o aviso de licença do Phaser fica junto do arquivo vendorizado.
+- **Reiniciar Fase** zera cronômetro, Itens, Samambaias-prateadas, Capturas e Checkpoints, e devolve os Predadores.
+- **Fatos na Pausa:** a fila e o tempo de exibição param junto com o jogo. Os ~4 s por Fato são calibrados no playtest (90 caracteres podem pedir mais).
+- **HUD de Itens:** um contador "X/Y" somando os tipos de Item da Fase; Samambaias-prateadas em "X/3".
