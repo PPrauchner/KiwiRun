@@ -46,7 +46,7 @@
 **Principais exportações de bens:**
 1. Laticínios: recorde previsto de ~NZ$ 28,6 bi em 2025-26, cerca de 45% da receita de alimentos e fibras
 2. Carnes e lã: ~NZ$ 14,1 bi (+14%)
-3. Horticultura: ~NZ$ 9,5 bi (volumes recordes de kiwi e maçã)
+3. Horticultura: ~NZ$ 9,5 bi (volumes recordes de Kiwifruta e maçã)
 4. Produtos florestais e madeira
 5. Vinho e alimentos processados
 
@@ -95,7 +95,7 @@
 - O MPI projeta exportações primárias acima de NZ$ 70 bi até 2030.
 - Cerca de um em cada sete trabalhadores atua em alimentos e fibras.
 - A **Fonterra** é a maior exportadora de laticínios do mundo, com cerca de 30% do comércio global do setor.
-- A **Zespri** comercializa kiwi no mundo todo e se beneficia de volumes recordes de exportação.
+- A **Zespri** comercializa Kiwifruta no mundo todo e se beneficia de volumes recordes de exportação.
 
 ### 5.2 O ecossistema de AgTech
 - **Manejo de rebanho e cercas virtuais**
@@ -106,7 +106,7 @@
   - **LIC (Livestock Improvement Corporation)**: genética leiteira, controle leiteiro e plataformas de dados.
   - Melhoramento de ovinos e bovinos com menor emissão de metano.
 - **Robótica e automação**
-  - **Robotics Plus**: robôs para colheita e embalagem de kiwi e maçã.
+  - **Robotics Plus**: robôs para colheita e embalagem de Kiwifruta e maçã.
   - **Waikato Milking Systems**: tecnologia de ordenha automatizada.
 - **Software e dados agrícolas**
   - **Hectre**: gestão de pomares e classificação de frutas por visão computacional.
@@ -194,7 +194,7 @@
 
 ## 8. Roteiro Sugerido para Apresentação de 1 Minuto (~150 palavras)
 
-> A Nova Zelândia é uma economia pequena e aberta, com cerca de cinco milhões de habitantes. Sua força são os alimentos: as exportações de alimentos e fibras devem bater o recorde de 64 bilhões de dólares neozelandeses este ano, lideradas por laticínios, carne e kiwi.
+> A Nova Zelândia é uma economia pequena e aberta, com cerca de cinco milhões de habitantes. Sua força são os alimentos: as exportações de alimentos e fibras devem bater o recorde de 64 bilhões de dólares neozelandeses este ano, lideradas por laticínios, carne e Kiwifruta.
 >
 > Para se manter à frente, o país investe em AgTech. A Halter, uma startup neozelandesa, usa coleiras GPS movidas a energia solar para conduzir o gado sem cercas. Em 2026, atingiu avaliação de dois bilhões de dólares, com mais de um milhão de coleiras vendidas.
 >
@@ -232,7 +232,7 @@
 |---|---|---|---|---|
 | P1 | A Halter usa coleiras GPS solares que guiam o gado com som e vibração, sem cercas. | 5.2 | Anúncio da Série E da Halter (mar/2026) | sim |
 | P2 | A Halter já vendeu mais de 1 milhão de coleiras para mais de 2 mil fazendas. | 5.2 | Anúncio da Série E da Halter (mar/2026) | sim |
-| P3 | Em 2026, a Halter chegou a US$ 2 bi: a maior rodada de capital de risco da NZ. | 5.2 | Anúncio da Série E da Halter (mar/2026) | sim |
+| P3 | Em 2026, a startup de AgTech Halter atingiu avaliação de US$ 2 bi. | 5.2 | Anúncio da Série E da Halter (mar/2026) | sim |
 | P4 | Cerca de 1 em cada 7 trabalhadores da NZ atua em alimentos e fibras. | 5.1 | a confirmar (provável MPI) | não |
 | P5 | A agropecuária gera cerca de metade das emissões de gases de efeito estufa da NZ. | 5.2 | a confirmar | não |
 
@@ -241,17 +241,17 @@
 | # | Candidato | Seção | Fonte | Ecoa |
 |---|---|---|---|---|
 | E1 | As exportações de alimentos e fibras devem bater o recorde de NZ$ 64,3 bi em 2025-26. | 1, 5.1 | MPI, SOPI de junho de 2026 | sim |
-| E2 | Laticínios rendem cerca de 45% das exportações de alimentos e fibras da NZ. | 3 | MPI, SOPI de junho de 2026 | sim |
+| E2 | Laticínios rendem cerca de 45% das exportações de alimentos e fibras da NZ. | 3 | MPI, SOPI de junho de 2026 | não |
 | E3 | A Fonterra é a maior exportadora de laticínios do mundo: ~30% do comércio global. | 5.1 | a confirmar | não |
-| E4 | A NZ exportou volumes recordes de Kiwifruta e maçã em 2025-26. | 3 | MPI, SOPI de junho de 2026 | sim |
-| E5 | Em 2026, a NZ assinou com a Índia um acordo que corta tarifas de 95% das exportações. | 3 | MFAT, acordo NZ-Índia (abr/2026) | não |
+| E4 | A NZ exportou volumes recordes de Kiwifruta e maçã em 2025-26. | 3 | MPI, SOPI de junho de 2026 | não |
+| E5 | Em 2026, a NZ assinou acordo para cortar tarifas de 95% do que exporta à Índia. | 3 | MFAT, acordo NZ-Índia (abr/2026) | não |
 | E6 | A China é o maior parceiro comercial da Nova Zelândia. | 1, 3 | a confirmar (provável Stats NZ) | não |
 
 ### Foguete (inovar)
 
 | # | Candidato | Seção | Fonte | Ecoa |
 |---|---|---|---|---|
-| F1 | A Rocket Lab foi fundada em Auckland, em 2006, por Peter Beck. | 6.1 | Rocket Lab | sim |
+| F1 | A Rocket Lab foi fundada em Auckland, em 2006, por Peter Beck. | 6.1 | Rocket Lab | não |
 | F2 | Em 2025, o Electron fez 21 lançamentos, todos com sucesso, a maioria de Māhia. | 6.2 | Rocket Lab | sim |
 | F3 | Os motores Rutherford do foguete Electron são impressos em 3D. | 6.2 | Rocket Lab | não |
 | F4 | Em 2025, a NZ empatou com a Rússia em 3º lugar em lançamentos orbitais. | 6.2 | a confirmar | não |
