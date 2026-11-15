@@ -18,7 +18,11 @@ apresentação de grupo (28/11/2026). Bilíngue (PT/EN), teclado e controle 8Bit
 
 - Setup: `npm ci`
 - Testes: `npm test` — lógica em Node (`node:test`) + validador de Fases.
-- Smoke no navegador: Playwright (Chromium).
+- Smoke no navegador: `npm run smoke` — Playwright (Chromium). Precisa de
+  `npx playwright install chromium` depois do `npm ci`; o hook de commit roda só
+  `npm test`, então o smoke não é checado automaticamente.
+- Branches: o trunk é `dev` (base dos PRs e das integrações), não a default `main`
+  que o `gh` informa; `main` recebe `dev` quando o autor decide publicar.
 
 ## Documentação
 
