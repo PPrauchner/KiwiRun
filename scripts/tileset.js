@@ -1,25 +1,27 @@
 /**
  * @file O tileset das Fases: onde cada tile fica no PNG e quais têm propriedades.
  *
- * Lido pelo gerador de Fases (ids e propriedades) e pelo gerador do PNG (o desenho).
- * Provisório: gerado por script até o Kenney Pixel Platformer entrar no repositório;
- * a troca muda só a imagem e os ids daqui.
+ * Lido pelo gerador de Fases (ids e propriedades). A imagem é o `tilemap_packed.png` do
+ * Kenney Pixel Platformer 1.2 (CC0), sem margem nem espaçamento; a licença fica ao lado.
  */
 
 /** Ids (base 0) dos tiles no PNG. */
 export const TILES = Object.freeze({
-  grama: 0,
-  terra: 1,
-  plataforma: 2,
-  cerca: 3,
-  bandeira: 4,
-  nuvem: 5,
-  arbusto: 6,
-  mastro: 7,
+  grama: 22,
+  terra: 122,
+  plataforma: 146,
+  cerca: 106,
+  bandeira: 111,
+  nuvem: 156,
+  arbusto: 124,
+  mastro: 131,
 });
 
-export const COLUNAS = 4;
-export const QUANTIDADE = 8;
+export const COLUNAS = 20;
+export const QUANTIDADE = 180;
+
+/** Licença do pacote Kenney, versionada ao lado da imagem. */
+export const LICENCA = 'assets/tiles/LICENSE-kenney.txt';
 
 /** Caminho do PNG a partir da raiz do repositório. */
 export const IMAGEM = 'assets/tiles/tileset.png';
