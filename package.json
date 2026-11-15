@@ -8,6 +8,11 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "gerar:fonte": "node scripts/gerar-fonte.js",
+    "smoke": "node scripts/smoke.js"
+  },
+  "devDependencies": {
+    "playwright": "1.65.1"
   }
 }
