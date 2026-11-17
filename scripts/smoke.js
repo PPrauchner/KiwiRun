@@ -1,6 +1,7 @@
 /**
  * @file Smoke no navegador: abre o jogo servido localmente no Chromium (Playwright),
- * espera a Tela inicial e falha se houver erro no console ou requisição fora da origem.
+ * espera a Tela inicial, aperta uma tecla, espera a Pecuária carregada e falha se houver
+ * erro no console ou requisição fora da origem.
  *
  * Uso: `npm run smoke`. Sai com código 1 e a lista de problemas quando algo falha.
  */
@@ -11,6 +12,7 @@ import { VERSAO } from '../src/logica/versao.js';
 
 const LIMITE_MS = 15_000;
 const CENA_TELA_INICIAL = 'tela-inicial';
+const CENA_FASE = 'fase';
 
 /**
  * Abre o jogo e devolve o que deu errado.
@@ -22,9 +24,9 @@ async function verificarJogo(url) {
   const problemas = [];
   const origem = new URL(url).origin;
   const navegador = await chromium.launch();
+  const pagina = await navegador.newPage({ viewport: { width: 1280, height: 720 } });
 
   try {
-    const pagina = await navegador.newPage({ viewport: { width: 1280, height: 720 } });
     pagina.on('console', (mensagem) => {
       if (mensagem.type() === 'error') problemas.push(`erro no console: ${mensagem.text()}`);
     });
@@ -65,6 +67,24 @@ async function verificarJogo(url) {
     }
   } catch (erro) {
     problemas.push(`Tela inicial não abriu: ${erro.message}`);
+    await navegador.close();
+    return problemas;
+  }
+
+  try {
+    await pagina.keyboard.press('Enter');
+    await pagina.waitForFunction(
+      (cena) => window.kiwirun.jogo.scene.getScene(cena)?.kiwi?.active === true,
+      CENA_FASE,
+      { timeout: LIMITE_MS },
+    );
+    const fase = await pagina.evaluate((cena) => {
+      const { fase: dados, kiwi } = window.kiwirun.jogo.scene.getScene(cena);
+      return { id: dados.id, temKiwi: Boolean(kiwi.body) };
+    }, CENA_FASE);
+    if (fase.id !== 'pecuaria' || !fase.temKiwi) problemas.push(`Fase aberta: ${JSON.stringify(fase)}`);
+  } catch (erro) {
+    problemas.push(`Pecuária não carregou depois de apertar uma tecla: ${erro.message}`);
   } finally {
     await navegador.close();
   }
@@ -79,4 +99,4 @@ if (problemas.length > 0) {
   console.error(`Smoke falhou:\n- ${problemas.join('\n- ')}`);
   process.exit(1);
 }
-console.log('Smoke ok: Tela inicial aberta, sem erro no console nem requisição fora da origem.');
+console.log('Smoke ok: Tela inicial e Pecuária abertas, sem erro no console nem requisição fora da origem.');

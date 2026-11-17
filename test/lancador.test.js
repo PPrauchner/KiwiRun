@@ -30,6 +30,7 @@ const MIME_ESPERADO = {
   '.png': 'image/png',
   '.ogg': 'audio/ogg',
   '.wav': 'audio/wav',
+  '.txt': 'text/plain; charset=utf-8',
 };
 
 /**

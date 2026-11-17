@@ -10,6 +10,8 @@
   "scripts": {
     "test": "node --test",
     "gerar:fonte": "node scripts/gerar-fonte.js",
+    "gerar:fase": "node scripts/gerar-fase.js",
+    "gerar:sprites": "node scripts/gerar-sprites.js",
     "smoke": "node scripts/smoke.js"
   },
   "devDependencies": {

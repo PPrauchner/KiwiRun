@@ -1,5 +1,6 @@
 /**
- * @file Tela inicial: "Kia ora!", o convite a apertar um botão e a versão num canto.
+ * @file Tela inicial: "Kia ora!", o convite a apertar um botão e a versão num canto;
+ * qualquer tecla abre a Pecuária.
  */
 import { FONTE } from './preload.js';
 import { VERSAO } from '../logica/versao.js';
@@ -8,6 +9,8 @@ import { VERSAO } from '../logica/versao.js';
 const TAMANHO_FONTE = 12;
 const MARGEM = 6;
 const COR_DISCRETA = 0x8899aa;
+/** A Fase que qualquer tecla abre, até o Menu chegar. */
+const FASE_INICIAL = 'pecuaria';
 
 export class TelaInicial extends Phaser.Scene {
   constructor() {
@@ -28,5 +31,14 @@ export class TelaInicial extends Phaser.Scene {
     this.add.bitmapText(largura - MARGEM, altura - MARGEM, FONTE, textos.t('tela_inicial.versao', { versao: VERSAO }), TAMANHO_FONTE)
       .setOrigin(1)
       .setTint(COR_DISCRETA);
+
+    // Ignora a repetição de uma tecla que já vinha segurada da Fase.
+    const teclado = this.input.keyboard;
+    const abrirFase = (evento) => {
+      if (evento.repeat) return;
+      teclado.off('keydown', abrirFase);
+      this.scene.start('fase', { faseId: FASE_INICIAL });
+    };
+    teclado.on('keydown', abrirFase);
   }
 }

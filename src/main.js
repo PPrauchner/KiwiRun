@@ -6,6 +6,8 @@
 import { criarTextos } from './logica/textos.js';
 import { Preload } from './cenas/preload.js';
 import { TelaInicial } from './cenas/tela-inicial.js';
+import { Fase } from './cenas/fase.js';
+import { FISICA } from './logica/pulo.js';
 
 /** Resolução interna; o Phaser escala para caber na janela, com barras fora de 16:9. */
 const LARGURA = 640;
@@ -22,10 +24,14 @@ const jogo = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
+  physics: {
+    default: 'arcade',
+    arcade: { gravity: { y: FISICA.gravidade }, fps: FISICA.passosPorSegundo, fixedStep: true },
+  },
   callbacks: {
     preBoot: (instancia) => instancia.registry.set('textos', criarTextos()),
   },
-  scene: [Preload, TelaInicial],
+  scene: [Preload, TelaInicial, Fase],
 });
 
 // Exposto para o smoke (Playwright) inspecionar a cena ativa.
