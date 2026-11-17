@@ -42,15 +42,33 @@ const ALTURA_FIM = 3;
  */
 
 /**
+ * Alcance do pulo segurado até pousar `subida` tiles acima da decolagem.
+ *
+ * O pulo é uma parábola de altura e alcance `PULO.segurado`: pousar mais alto corta a
+ * descida, e o alcance cai até a metade quando o pouso fica no ápice. Pousar na mesma
+ * altura ou abaixo vale o alcance cheio (a descida extra fica de folga).
+ *
+ * @param {number} subida - Tiles entre o chão da decolagem e o do pouso.
+ * @returns {number} Distância horizontal, em tiles, que o pulo cobre até esse pouso.
+ */
+function alcanceSubindo(subida) {
+  const { altura, alcance } = PULO.segurado;
+  if (subida <= 0) return alcance;
+  return (alcance / 2) * (1 + Math.sqrt(1 - subida / altura));
+}
+
+/**
  * Calcula a altura do chão em cada coluna, recusando o que o pulo não vence.
  *
  * @param {Trecho[]} trechos - Os trechos da Fase.
  * @returns {number[]} Altura do chão por coluna, em tiles; 0 num vão.
- * @throws {Error} Se um vão é mais largo que o alcance ou um degrau mais alto que o pulo.
+ * @throws {Error} Se um vão é mais largo que o alcance até o chão seguinte, ou um degrau
+ *   mais alto que o pulo.
  */
 function alturasDoChao(trechos) {
   const alturas = [];
   let alturaAnterior = null;
+  let vaoAnterior = 0;
 
   for (const trecho of trechos) {
     if ('vao' in trecho) {
@@ -58,13 +76,20 @@ function alturasDoChao(trechos) {
         throw new Error(`vão de ${trecho.vao} tiles na coluna ${alturas.length}: o alcance do pulo é ${PULO.segurado.alcance}`);
       }
       alturas.push(...Array(trecho.vao).fill(0));
+      vaoAnterior = trecho.vao;
       continue;
     }
-    if (alturaAnterior !== null && trecho.altura - alturaAnterior > PULO.segurado.altura) {
-      throw new Error(`degrau de ${trecho.altura - alturaAnterior} tiles na coluna ${alturas.length}: o pulo sobe ${PULO.segurado.altura}`);
+    const subida = alturaAnterior === null ? 0 : trecho.altura - alturaAnterior;
+    if (subida > PULO.segurado.altura) {
+      throw new Error(`degrau de ${subida} tiles na coluna ${alturas.length}: o pulo sobe ${PULO.segurado.altura}`);
+    }
+    const alcance = alcanceSubindo(subida);
+    if (vaoAnterior > alcance) {
+      throw new Error(`vão de ${vaoAnterior} tiles subindo ${subida} antes da coluna ${alturas.length}: o pulo alcança ${alcance.toFixed(1)}`);
     }
     alturas.push(...Array(trecho.chao).fill(trecho.altura));
     alturaAnterior = trecho.altura;
+    vaoAnterior = 0;
   }
   return alturas;
 }

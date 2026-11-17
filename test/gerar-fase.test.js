@@ -96,6 +96,18 @@ test('vão mais largo que o alcance do pulo é recusado', () => {
   assert.throws(() => gerarMapa(descricao({ trechos })), /vão/);
 });
 
+test('vão no alcance seguido de subida é recusado: o alcance cai quando o pouso sobe', () => {
+  const trechos = [{ chao: 10, altura: 3 }, { vao: PULO.segurado.alcance }, { chao: 10, altura: 3 + PULO.segurado.altura }];
+
+  assert.throws(() => gerarMapa(descricao({ trechos })), /vão/);
+});
+
+test('vão curto seguido de subida que o pulo vence é aceito', () => {
+  const trechos = [{ chao: 10, altura: 3 }, { vao: 2 }, { chao: 10, altura: 3 + PULO.segurado.altura }];
+
+  assert.doesNotThrow(() => gerarMapa(descricao({ trechos })));
+});
+
 test('degrau mais alto que o pulo é recusado', () => {
   const trechos = [{ chao: 10, altura: 3 }, { chao: 10, altura: 3 + PULO.segurado.altura + 1 }];
 
