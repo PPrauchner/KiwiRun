@@ -25,15 +25,8 @@ function repetidas(valores) {
   return [...new Set(valores.filter((valor, indice) => valores.indexOf(valor) !== indice))];
 }
 
-/**
- * Os objetos de todas as camadas de objetos do mapa.
- *
- * @param {object} mapa - O mapa Tiled.
- * @returns {object[]} Os objetos.
- */
-function objetosDoMapa(mapa) {
-  return mapa.layers.filter((camada) => camada.type === 'objectgroup').flatMap((camada) => camada.objects);
-}
+/** A camada de objetos que a cena da Fase lê; objetos de outras camadas não entram na Fase. */
+const CAMADA_OBJETOS = 'objetos';
 
 /**
  * Valida o mapa de uma Fase.
@@ -47,7 +40,9 @@ function objetosDoMapa(mapa) {
 export function validarFase(fase, mapa, contexto) {
   const problemas = [];
   const problema = (regra, mensagem) => problemas.push({ regra, mensagem });
-  const objetos = objetosDoMapa(mapa);
+  const camadaObjetos = mapa.layers.find((camada) => camada.type === 'objectgroup' && camada.name === CAMADA_OBJETOS);
+  if (!camadaObjetos) problema('camada-objetos', `mapa sem a camada de objetos \`${CAMADA_OBJETOS}\``);
+  const objetos = camadaObjetos?.objects ?? [];
   const comNome = (nome) => objetos.filter((objeto) => objeto.name === nome);
 
   if (mapa.infinite) problema('infinito', 'mapa infinito; a Fase precisa de mapa finito');

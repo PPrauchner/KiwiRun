@@ -85,6 +85,21 @@ test('mapa sem fim é problema', () => {
   assert.deepEqual(regras(validarFase(faseValida(), mapa, CONTEXTO)), ['fim']);
 });
 
+test('mapa sem a camada `objetos` é problema', () => {
+  const mapa = mapaValido();
+  mapa.layers[1].name = 'Object Layer 1';
+
+  assert.ok(regras(validarFase(faseValida(), mapa, CONTEXTO)).includes('camada-objetos'));
+});
+
+test('objeto fora da camada `objetos` não conta para a Fase', () => {
+  const mapa = mapaValido();
+  const [inicio] = objetos(mapa).splice(0, 1);
+  mapa.layers.push({ type: 'objectgroup', name: 'Object Layer 1', objects: [inicio] });
+
+  assert.deepEqual(regras(validarFase(faseValida(), mapa, CONTEXTO)), ['inicio']);
+});
+
 test('mapa com duas Samambaias-prateadas é problema', () => {
   const mapa = mapaValido();
   const fase = faseValida();
