@@ -3,7 +3,10 @@
  * `scripts/fases/<id>.js`: camadas `fundo`, `colisao`, `frente` e `objetos`, mapa finito,
  * tileset embutido e sem compressão, para que abrir e salvar no Tiled seja opcional.
  *
- * Recusa vãos, degraus e plataformas além das constantes do pulo, e recusa sobrescrever
+ * Na camada `objetos` ficam pontos: `inicio`, cada `checkpoint` (no chão) e cada `item`
+ * (o id do Item no tipo do objeto), além da área `fim`.
+ *
+ * Recusa vãos, degraus, plataformas e Itens além das constantes do pulo, e recusa sobrescrever
  * um `.tmj` existente sem `--force` (o arquivo pode ter sido enfeitado no Tiled).
  *
  * Uso: `npm run gerar:fase -- <id> [--force] [--saida <arquivo>]`.
@@ -35,10 +38,19 @@ const ALTURA_FIM = 3;
  */
 
 /**
+ * @typedef {Object} ItemNoMapa
+ * @property {number} coluna - Coluna do Item; precisa ter chão.
+ * @property {string} item - Id do Item no catálogo.
+ * @property {number} alturaSobreChao - Tile do Item contado do chão: 1 é o tile logo acima.
+ */
+
+/**
  * @typedef {Object} DescricaoFase
  * @property {number} altura - Altura do mapa, em tiles.
  * @property {Trecho[]} trechos - Da esquerda para a direita; o primeiro e o último são chão.
  * @property {Plataforma[]} plataformas - Plataformas de mão única.
+ * @property {ItemNoMapa[]} [itens] - Itens a coletar.
+ * @property {number[]} [checkpoints] - Colunas dos Checkpoints, além do início.
  */
 
 /**
@@ -173,10 +185,27 @@ export function gerarMapa(descricao) {
   for (let i = 1; i < ALTURA_FIM; i += 1) frente.pintar(colunaFim, topo(colunaFim) - i, TILES.mastro);
   frente.pintar(colunaFim, topo(colunaFim) - ALTURA_FIM, TILES.bandeira);
 
+  const ponto = (name, type, coluna, y) => ({ height: 0, name, point: true, rotation: 0, type, visible: true, width: 0, x: (coluna + 0.5) * TILE, y });
   const objetos = [
-    { height: 0, id: 1, name: 'inicio', point: true, rotation: 0, type: '', visible: true, width: 0, x: (COLUNA_INICIO + 0.5) * TILE, y: topo(COLUNA_INICIO) * TILE },
-    { height: ALTURA_FIM * TILE, id: 2, name: 'fim', rotation: 0, type: '', visible: true, width: TILE, x: colunaFim * TILE, y: (topo(colunaFim) - ALTURA_FIM) * TILE },
+    ponto('inicio', '', COLUNA_INICIO, topo(COLUNA_INICIO) * TILE),
+    { height: ALTURA_FIM * TILE, name: 'fim', rotation: 0, type: '', visible: true, width: TILE, x: colunaFim * TILE, y: (topo(colunaFim) - ALTURA_FIM) * TILE },
   ];
+
+  for (const coluna of descricao.checkpoints ?? []) {
+    if (!chao[coluna]) throw new Error(`checkpoint na coluna ${coluna} sem chão embaixo`);
+    objetos.push(ponto('checkpoint', '', coluna, topo(coluna) * TILE));
+  }
+
+  // O pulo segurado tira os pés do Kiwi `altura` tiles do chão: o corpo alcança um tile acima.
+  const alturaMaximaItem = PULO.segurado.altura + 1;
+  for (const { coluna, item, alturaSobreChao } of descricao.itens ?? []) {
+    if (!chao[coluna]) throw new Error(`item ${item} na coluna ${coluna} sem chão embaixo`);
+    if (alturaSobreChao < 1 || alturaSobreChao > alturaMaximaItem) {
+      throw new Error(`item ${item} ${alturaSobreChao} tiles acima do chão na coluna ${coluna}: o Kiwi alcança ${alturaMaximaItem}`);
+    }
+    objetos.push(ponto('item', item, coluna, (topo(coluna) - alturaSobreChao + 0.5) * TILE));
+  }
+  objetos.forEach((objeto, indice) => { objeto.id = indice + 1; });
 
   return {
     compressionlevel: -1,

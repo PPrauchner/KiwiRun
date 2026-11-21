@@ -2,13 +2,16 @@
  * @file Cena Fase genérica: monta qualquer Fase a partir do seu mapa `.tmj` e do Catálogo.
  *
  * O Kiwi anda e pula (física Arcade em passo fixo de 60/s); a borda inferior do mapa é
- * Zona de queda e devolve o Kiwi ao Checkpoint (por ora, só o início); tocar o fim vence
- * a Fase e, por ora, volta à Tela inicial. O teclado é provisório até o Input unificado.
+ * Zona de queda e devolve o Kiwi ao último Checkpoint por que passou (o início é o
+ * primeiro), mantendo os Itens já coletados; tocar o fim vence a Fase e, por ora, volta à
+ * Tela inicial. Até o primeiro mover ou pular, a Fase e o cronômetro ficam parados. O HUD
+ * mostra o Tempo gasto e os Itens em "X/Y". O teclado é provisório até o Input unificado.
  */
-import { buscarFase } from '../logica/catalogo.js';
+import { buscarFase, imagemItem } from '../logica/catalogo.js';
 import { criarControlePulo } from '../logica/controle-pulo.js';
+import { criarCronometro, formatarTempo } from '../logica/cronometro.js';
 import { FISICA, TILE } from '../logica/pulo.js';
-import { TEXTURA_KIWI, TEXTURA_TILESET } from './preload.js';
+import { FONTE, TEXTURA_KIWI, TEXTURA_QUADROS_TILESET, TEXTURA_TILESET } from './preload.js';
 
 /** Tamanho da hitbox do Kiwi, menor que o sprite de 18×18, e seu deslocamento nele. */
 const HITBOX = Object.freeze({ largura: 10, altura: 11, x: 4, y: 7 });
@@ -17,6 +20,19 @@ const ZONA_MORTA = Object.freeze({ largura: 60, altura: 48 });
 const OLHAR_A_FRENTE = 48;
 const SUAVIDADE_CAMERA = 0.12;
 const COR_CEU = '#5fcde4';
+
+/** Quadros do Kenney no tileset (ids base 0): a bandeira em 2 quadros e o mastro. */
+const QUADROS_BANDEIRA = Object.freeze([111, 112]);
+const QUADRO_MASTRO = 131;
+const QUADROS_POR_SEGUNDO_BANDEIRA = 4;
+const ANIMACAO_BANDEIRA = 'bandeira';
+/** Bandeira de um Checkpoint ainda não ativado: apagada e parada. */
+const TINTA_INATIVO = 0x777777;
+
+/** HUD: tamanho nativo da fonte bitmap, margem da tela e profundidade acima de tudo. */
+const TAMANHO_FONTE_HUD = 12;
+const MARGEM_HUD = 6;
+const PROFUNDIDADE_HUD = 100;
 
 /** Teclas provisórias: setas/WASD para andar, Espaço, ↑ ou W para pular. */
 const TECLAS = Object.freeze({
@@ -38,6 +54,14 @@ function ehUmaMao(tile) {
   return propriedades?.umaMao === true;
 }
 
+/**
+ * @param {string} item - Id do Item no catálogo.
+ * @returns {string} A chave da textura do Item.
+ */
+function texturaItem(item) {
+  return `item-${item}`;
+}
+
 export class Fase extends Phaser.Scene {
   constructor() {
     super('fase');
@@ -48,10 +72,12 @@ export class Fase extends Phaser.Scene {
     this.fase = buscarFase(faseId);
     this.chaveMapa = `mapa-${this.fase.id}`;
     this.venceu = false;
+    this.coletados = 0;
   }
 
   preload() {
     this.load.tilemapTiledJSON(this.chaveMapa, this.fase.mapa);
+    for (const item of this.fase.itens) this.load.image(texturaItem(item), imagemItem(item));
   }
 
   create() {
@@ -80,10 +106,97 @@ export class Fase extends Phaser.Scene {
     this.physics.add.existing(chegada, true);
     this.physics.add.overlap(this.kiwi, chegada, () => this.vencer());
 
+    if (!this.anims.exists(ANIMACAO_BANDEIRA)) {
+      this.anims.create({
+        key: ANIMACAO_BANDEIRA,
+        frames: this.anims.generateFrameNumbers(TEXTURA_QUADROS_TILESET, { frames: [...QUADROS_BANDEIRA] }),
+        frameRate: QUADROS_POR_SEGUNDO_BANDEIRA,
+        repeat: -1,
+      });
+    }
+    this.criarItens(objetos.filter((objeto) => objeto.name === 'item'));
+    for (const checkpoint of objetos.filter((objeto) => objeto.name === 'checkpoint')) this.criarCheckpoint(checkpoint);
+
     this.configurarCamera(mapa);
     this.configurarTeclado();
     this.controlePulo = criarControlePulo();
     this.physics.world.on('worldstep', (dt) => this.passoDoKiwi(dt));
+
+    // A Fase fica congelada (e o cronômetro em zero) até o primeiro mover ou pular.
+    this.cronometro = criarCronometro();
+    this.physics.pause();
+    this.criarHud();
+  }
+
+  /**
+   * @param {number} _tempo - Relógio do jogo, em ms (não usado).
+   * @param {number} delta - Milissegundos desde o quadro anterior.
+   */
+  update(_tempo, delta) {
+    if (!this.cronometro.iniciado && this.houveMoverOuPular()) {
+      this.cronometro.registrarInput();
+      this.physics.resume();
+    }
+    this.cronometro.avancar(delta / 1000);
+    this.hudTempo.setText(formatarTempo(this.cronometro.segundos));
+  }
+
+  /** @returns {boolean} Se o jogador está movendo ou acabou de pular. */
+  houveMoverOuPular() {
+    const { esquerda, direita, pular } = this.teclas;
+    return this.apertouPular || [...esquerda, ...direita, ...pular].some((tecla) => tecla.isDown);
+  }
+
+  /** @param {Phaser.Types.Tilemaps.TiledObject[]} itens - Os pontos `item` do mapa. */
+  criarItens(itens) {
+    this.totalItens = itens.length;
+    const grupo = this.physics.add.staticGroup();
+    for (const { x, y, type } of itens) grupo.create(x, y, texturaItem(type));
+    this.physics.add.overlap(this.kiwi, grupo, (_kiwi, item) => this.coletar(item));
+  }
+
+  /** @param {Phaser.Physics.Arcade.Sprite} item - O Item que o Kiwi tocou. */
+  coletar(item) {
+    item.destroy();
+    this.coletados += 1;
+    this.atualizarHudItens();
+  }
+
+  /**
+   * Põe o mastro e a bandeira de um Checkpoint; passar por ele o ativa.
+   *
+   * @param {Phaser.Types.Tilemaps.TiledObject} checkpoint - O ponto `checkpoint`, no chão.
+   */
+  criarCheckpoint({ x, y }) {
+    this.add.image(x, y - TILE / 2, TEXTURA_QUADROS_TILESET, QUADRO_MASTRO);
+    const bandeira = this.add.sprite(x, y - TILE * 1.5, TEXTURA_QUADROS_TILESET, QUADROS_BANDEIRA[0]).setTint(TINTA_INATIVO);
+    const zona = this.add.zone(x, y - TILE, TILE, TILE * 2);
+    this.physics.add.existing(zona, true);
+    const posicao = { x, y: y - TILE / 2 };
+    this.physics.add.overlap(this.kiwi, zona, () => {
+      if (this.checkpoint === posicao) return;
+      this.checkpoint = posicao;
+      bandeira.clearTint().play(ANIMACAO_BANDEIRA);
+    });
+  }
+
+  /** Tempo gasto à esquerda; à direita, "X/Y" e o ícone do primeiro Item da Fase. */
+  criarHud() {
+    const { width: largura } = this.scale;
+    const fixo = (objeto) => objeto.setScrollFactor(0).setDepth(PROFUNDIDADE_HUD);
+    this.hudTempo = fixo(this.add.bitmapText(MARGEM_HUD, MARGEM_HUD, FONTE, formatarTempo(0), TAMANHO_FONTE_HUD));
+    const [primeiroItem] = this.fase.itens;
+    const larguraIcone = primeiroItem ? TILE + MARGEM_HUD / 2 : 0;
+    if (primeiroItem) {
+      fixo(this.add.image(largura - MARGEM_HUD, MARGEM_HUD + TAMANHO_FONTE_HUD / 2, texturaItem(primeiroItem)).setOrigin(1, 0.5));
+    }
+    // Alinhado à direita: o texto cresce para a esquerda sem cobrir o ícone.
+    this.hudItens = fixo(this.add.bitmapText(largura - MARGEM_HUD - larguraIcone, MARGEM_HUD, FONTE, '', TAMANHO_FONTE_HUD).setOrigin(1, 0));
+    this.atualizarHudItens();
+  }
+
+  atualizarHudItens() {
+    this.hudItens.setText(`${this.coletados}/${this.totalItens}`);
   }
 
   /** @returns {Phaser.Types.Physics.Arcade.SpriteWithDynamicBody} O Kiwi no Checkpoint. */
@@ -163,6 +276,7 @@ export class Fase extends Phaser.Scene {
   vencer() {
     if (this.venceu) return;
     this.venceu = true;
+    this.cronometro.parar();
     this.scene.start('tela-inicial');
   }
 }
