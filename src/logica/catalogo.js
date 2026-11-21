@@ -83,3 +83,13 @@ export function buscarFase(id) {
   if (!fase) throw new Error(`Fase desconhecida: ${id}`);
   return fase;
 }
+
+/**
+ * Caminho do sprite de um Item, gerado por script, a partir da raiz do site.
+ *
+ * @param {string} item - Id do Item.
+ * @returns {string} O caminho do PNG 18×18.
+ */
+export function imagemItem(item) {
+  return `assets/sprites/itens/${item}.png`;
+}
