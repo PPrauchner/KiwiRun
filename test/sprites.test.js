@@ -1,6 +1,6 @@
 /**
  * @file Os PNGs do jogo estão na grade de 18×18 que o mapa e a cena esperam: o tileset do
- * Kenney (CC0, com a licença versionada) e o sprite do Kiwi gerado por script.
+ * Kenney (CC0, com a licença versionada) e os sprites do Kiwi e dos Itens gerados por script.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,6 +8,7 @@ import { readFile } from 'node:fs/promises';
 import { TILE } from '../src/logica/pulo.js';
 import { COLUNAS, IMAGEM, LICENCA, QUANTIDADE } from '../scripts/tileset.js';
 import { QUADROS_KIWI } from '../scripts/gerar-sprites.js';
+import { MUNDOS, imagemItem } from '../src/logica/catalogo.js';
 
 /**
  * Lê largura e altura do cabeçalho de um PNG.
@@ -39,4 +40,13 @@ test('o sprite do Kiwi é uma faixa de quadros 18×18', async () => {
 
   assert.equal(altura, TILE);
   assert.equal(largura, QUADROS_KIWI.length * TILE);
+});
+
+test('todo Item que o catálogo declara tem seu sprite 18×18 gerado', async () => {
+  const itens = MUNDOS.flatMap((mundo) => mundo.fases).flatMap((fase) => fase.itens);
+
+  for (const item of itens) {
+    const { largura, altura } = await dimensoes(imagemItem(item));
+    assert.deepEqual([largura, altura], [TILE, TILE], item);
+  }
 });
