@@ -193,4 +193,12 @@ test('cada Checkpoint vira um ponto "checkpoint" pousado no chão da coluna', ()
 test('Checkpoint sobre um vão é recusado', () => {
   assert.throws(() => gerarMapa(descricao({ checkpoints: [10] })), /checkpoint/);
 });
-
+
+test('a Pecuária versionada tem Checkpoint e só Itens do tema que o catálogo declara', async () => {
+  const mapa = JSON.parse(await readFile(new URL('../assets/mapas/pecuaria.tmj', import.meta.url), 'utf8'));
+  const tipos = objetosChamados(mapa, 'item').map((objeto) => objeto.type);
+
+  assert.ok(tipos.length > 0);
+  assert.deepEqual([...new Set(tipos)].sort(), [...buscarFase('pecuaria').itens].sort());
+  assert.ok(objetosChamados(mapa, 'checkpoint').length > 0);
+});
