@@ -72,6 +72,14 @@ export const MUNDOS = Object.freeze([
 ]);
 
 /**
+ * Espécies de Predador: mamíferos invasores reais da NZ. No mapa, o objeto `predador`
+ * leva a espécie no tipo.
+ *
+ * @type {readonly string[]}
+ */
+export const PREDADORES = Object.freeze(['arminho', 'gamba', 'rato']);
+
+/**
  * Busca uma Fase pelo id, em qualquer Mundo.
  *
  * @param {string} id - Id da Fase.
