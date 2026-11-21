@@ -10,6 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { gerarMapa } from '../scripts/gerar-fase.js';
 import { PULO, TILE } from '../src/logica/pulo.js';
+import { buscarFase } from '../src/logica/catalogo.js';
 
 const SCRIPT = fileURLToPath(new URL('../scripts/gerar-fase.js', import.meta.url));
 
@@ -153,3 +154,43 @@ test('a descrição da Pecuária cabe no pulo e o .tmj versionado tem o que a ce
   assert.ok(objetos.includes('inicio') && objetos.includes('fim'));
   assert.equal(mapa.infinite, false);
 });
+
+/** Os objetos do mapa com esse nome. */
+function objetosChamados(mapa, nome) {
+  return mapa.layers.find((camada) => camada.name === 'objetos').objects.filter((objeto) => objeto.name === nome);
+}
+
+test('cada Item vira um ponto "item" com o id no tipo, no centro do tile acima do chão', () => {
+  const mapa = gerarMapa(descricao({ itens: [{ coluna: 4, item: 'la', alturaSobreChao: 1 }, { coluna: 15, item: 'leite', alturaSobreChao: 3 }] }));
+  const itens = objetosChamados(mapa, 'item');
+  const topoDoChao = mapa.height - 3;
+
+  assert.deepEqual(
+    itens.map(({ type, x, y, point }) => ({ type, x, y, point })),
+    [
+      { type: 'la', x: 4.5 * TILE, y: (topoDoChao - 0.5) * TILE, point: true },
+      { type: 'leite', x: 15.5 * TILE, y: (topoDoChao - 2.5) * TILE, point: true },
+    ],
+  );
+  assert.equal(new Set(mapa.layers.find((camada) => camada.name === 'objetos').objects.map((objeto) => objeto.id)).size, 4);
+});
+
+test('Item sobre um vão ou fora do alcance do pulo é recusado', () => {
+  assert.throws(() => gerarMapa(descricao({ itens: [{ coluna: 10, item: 'la', alturaSobreChao: 1 }] })), /item/);
+  const altoDemais = PULO.segurado.altura + 2;
+  assert.throws(() => gerarMapa(descricao({ itens: [{ coluna: 4, item: 'la', alturaSobreChao: altoDemais }] })), /item/);
+});
+
+test('cada Checkpoint vira um ponto "checkpoint" pousado no chão da coluna', () => {
+  const mapa = gerarMapa(descricao({ checkpoints: [14] }));
+  const [checkpoint] = objetosChamados(mapa, 'checkpoint');
+
+  assert.equal(checkpoint.x, 14.5 * TILE);
+  assert.equal(checkpoint.y, (mapa.height - 3) * TILE);
+  assert.equal(checkpoint.point, true);
+});
+
+test('Checkpoint sobre um vão é recusado', () => {
+  assert.throws(() => gerarMapa(descricao({ checkpoints: [10] })), /checkpoint/);
+});
+
