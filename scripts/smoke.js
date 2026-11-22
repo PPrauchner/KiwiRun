@@ -1,8 +1,9 @@
 /**
  * @file Smoke no navegador: abre o jogo servido localmente no Chromium (Playwright),
  * espera a Tela inicial, aperta uma tecla, espera a Pecuária carregada e confere o HUD,
- * a Fase parada até o primeiro input, a coleta de um Item e a volta ao Checkpoint. Falha
- * também se houver erro no console ou requisição fora da origem.
+ * a Fase parada até o primeiro input, a coleta de um Item, as Samambaias-prateadas e a
+ * Fila de Fatos, e a volta ao Checkpoint. Falha também se houver erro no console ou
+ * requisição fora da origem.
  *
  * Uso: `npm run smoke`. Sai com código 1 e a lista de problemas quando algo falha.
  */
@@ -12,6 +13,7 @@ import { iniciarServidor } from './servidor.js';
 import { criarTextos } from '../src/logica/textos.js';
 import { VERSAO } from '../src/logica/versao.js';
 import { formatarTempo } from '../src/logica/cronometro.js';
+import { DURACAO_FATO } from '../src/logica/fila-fatos.js';
 
 const LIMITE_MS = 15_000;
 const CENA_TELA_INICIAL = 'tela-inicial';
@@ -35,13 +37,17 @@ async function objetosDaPecuaria(nome) {
  * Lê da cena Fase o que o smoke confere: textos do HUD, posição do Kiwi e o cronômetro.
  *
  * @param {import('playwright').Page} pagina - A página do jogo.
- * @returns {Promise<{ textos: string[], x: number, y: number, segundos: number }>} O estado.
+ * @returns {Promise<{ textos: string[], x: number, y: number, segundos: number, fatosEncontrados: number }>}
+ *   O estado.
  */
 function estadoDaFase(pagina) {
   return pagina.evaluate((cena) => {
     const fase = window.kiwirun.jogo.scene.getScene(cena);
-    const textos = fase.children.list.filter((objeto) => objeto.type === 'BitmapText').map((objeto) => objeto.text);
-    return { textos, x: fase.kiwi.x, y: fase.kiwi.y, segundos: fase.cronometro.segundos };
+    const textos = fase.children.list
+      .filter((objeto) => objeto.type === 'BitmapText' && objeto.visible)
+      .map((objeto) => objeto.text);
+    const fatosEncontrados = fase.fatosEncontrados?.length ?? 0;
+    return { textos, x: fase.kiwi.x, y: fase.kiwi.y, segundos: fase.cronometro.segundos, fatosEncontrados };
   }, CENA_FASE);
 }
 
@@ -78,6 +84,24 @@ async function verificarItensECheckpoints(pagina) {
   await pagina.waitForTimeout(ESPERA_MS);
   if (!(await estadoDaFase(pagina)).textos.includes(`1/${itens.length}`)) problemas.push('coletar um Item não atualizou o HUD');
 
+  // Duas Samambaias-prateadas seguidas: o segundo Fato espera o primeiro sair da tela.
+  const samambaias = await objetosDaPecuaria('samambaia');
+  const textos = criarTextos();
+  const [fato1, fato2] = samambaias.map((samambaia) => textos.t(samambaia.type));
+  if (!(await estadoDaFase(pagina)).textos.includes(`0/${samambaias.length}`)) problemas.push(`HUD sem "0/${samambaias.length}" Samambaias-prateadas`);
+  await levarKiwi(samambaias[0].x, samambaias[0].y);
+  await pagina.waitForTimeout(ESPERA_MS);
+  const pegou = await estadoDaFase(pagina);
+  if (!pegou.textos.includes(`1/${samambaias.length}`)) problemas.push('pegar uma Samambaia-prateada não atualizou o HUD');
+  if (!pegou.textos.includes(fato1)) problemas.push('pegar uma Samambaia-prateada não mostrou o Fato');
+  if (pegou.segundos <= andou.segundos) problemas.push('mostrar o Fato parou o cronômetro');
+  await levarKiwi(samambaias[1].x, samambaias[1].y);
+  await pagina.waitForTimeout(ESPERA_MS);
+  const duas = await estadoDaFase(pagina);
+  if (!duas.textos.includes(fato1) || duas.textos.includes(fato2)) problemas.push('o segundo Fato não esperou o primeiro sair');
+  await pagina.waitForTimeout(DURACAO_FATO * 1000);
+  if (!(await estadoDaFase(pagina)).textos.includes(fato2)) problemas.push('o segundo Fato não apareceu depois do primeiro');
+
   await levarKiwi(checkpoint.x, checkpoint.y - 9);
   await pagina.waitForTimeout(ESPERA_MS);
   await levarKiwi(checkpoint.x, 10_000);
@@ -87,6 +111,9 @@ async function verificarItensECheckpoints(pagina) {
     problemas.push(`cair não devolveu o Kiwi ao Checkpoint: ${voltou.x},${voltou.y}`);
   }
   if (!voltou.textos.includes(`1/${itens.length}`)) problemas.push('voltar ao Checkpoint perdeu os Itens coletados');
+  if (!voltou.textos.includes(`2/${samambaias.length}`) || voltou.fatosEncontrados !== 2) {
+    problemas.push('voltar ao Checkpoint perdeu as Samambaias-prateadas ou os Fatos encontrados');
+  }
   return problemas;
 }
 
@@ -176,4 +203,4 @@ if (problemas.length > 0) {
   console.error(`Smoke falhou:\n- ${problemas.join('\n- ')}`);
   process.exit(1);
 }
-console.log('Smoke ok: Tela inicial e Pecuária abertas, HUD, Itens e Checkpoint funcionando, sem erro no console nem requisição fora da origem.');
+console.log('Smoke ok: Tela inicial e Pecuária abertas, HUD, Itens, Samambaias-prateadas, Fatos e Checkpoint funcionando, sem erro no console nem requisição fora da origem.');
