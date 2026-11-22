@@ -202,3 +202,32 @@ test('a Pecuária versionada tem Checkpoint e só Itens do tema que o catálogo 
   assert.deepEqual([...new Set(tipos)].sort(), [...buscarFase('pecuaria').itens].sort());
   assert.ok(objetosChamados(mapa, 'checkpoint').length > 0);
 });
+
+test('cada Samambaia-prateada vira um ponto "samambaia" com a chave do Fato no tipo', () => {
+  const mapa = gerarMapa(descricao({ samambaias: [{ coluna: 5, chave: 'fato.teste.1', alturaSobreChao: 2 }] }));
+  const [samambaia] = objetosChamados(mapa, 'samambaia');
+
+  assert.deepEqual(
+    { type: samambaia.type, x: samambaia.x, y: samambaia.y, point: samambaia.point },
+    { type: 'fato.teste.1', x: 5.5 * TILE, y: (mapa.height - 3 - 1.5) * TILE, point: true },
+  );
+});
+
+test('a Samambaia-prateada escondida fica atrás de um tile da camada frente', () => {
+  const visivel = gerarMapa(descricao({ samambaias: [{ coluna: 5, chave: 'fato.teste.1', alturaSobreChao: 1 }] }));
+  const escondida = gerarMapa(descricao({ samambaias: [{ coluna: 5, chave: 'fato.teste.1', alturaSobreChao: 1, escondida: true }] }));
+  const tileDaFrente = (mapa) => {
+    const frente = mapa.layers.find((camada) => camada.name === 'frente');
+    return frente.data[(mapa.height - 3 - 1) * mapa.width + 5];
+  };
+
+  assert.equal(tileDaFrente(visivel), 0);
+  assert.ok(tileDaFrente(escondida) > 0);
+});
+
+test('Samambaia-prateada sobre um vão ou fora do alcance do pulo é recusada', () => {
+  assert.throws(() => gerarMapa(descricao({ samambaias: [{ coluna: 10, chave: 'fato.teste.1', alturaSobreChao: 1 }] })), /samambaia/i);
+  const altoDemais = PULO.segurado.altura + 2;
+  assert.throws(() => gerarMapa(descricao({ samambaias: [{ coluna: 4, chave: 'fato.teste.1', alturaSobreChao: altoDemais }] })), /samambaia/i);
+});
+
