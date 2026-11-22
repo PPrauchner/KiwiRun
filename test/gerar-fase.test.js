@@ -239,3 +239,19 @@ test('a Pecuária versionada tem uma Samambaia-prateada escondida atrás da cama
 
   assert.equal(atrasDaFrente.length, 1);
 });
+
+test('cada Predador vira uma área "predador" com a espécie no tipo, um tile acima do chão entre as colunas da patrulha', () => {
+  const mapa = gerarMapa(descricao({ predadores: [{ especie: 'rato', de: 3, ate: 7 }] }));
+  const [predador] = objetosChamados(mapa, 'predador');
+
+  assert.deepEqual(
+    { type: predador.type, x: predador.x, y: predador.y, width: predador.width, height: predador.height },
+    { type: 'rato', x: 3 * TILE, y: (mapa.height - 3 - 1) * TILE, width: 5 * TILE, height: TILE },
+  );
+});
+
+test('patrulha de Predador sobre um vão ou um degrau é recusada', () => {
+  assert.throws(() => gerarMapa(descricao({ predadores: [{ especie: 'rato', de: 8, ate: 13 }] })), /predador/i);
+  const comDegrau = descricao({ trechos: [{ chao: 5, altura: 3 }, { chao: 5, altura: 4 }] });
+  assert.throws(() => gerarMapa({ ...comDegrau, predadores: [{ especie: 'rato', de: 2, ate: 7 }] }), /predador/i);
+});
