@@ -1,10 +1,12 @@
 /**
  * @file Smoke no navegador: abre o jogo servido localmente no Chromium (Playwright),
- * espera a Tela inicial, aperta uma tecla, espera a Pecuária carregada e confere o HUD,
+ * espera a Tela inicial, aperta uma tecla, confere o Menu (cursor na Pecuária, Mundos e
+ * Fases em breve marcados, Esc de volta à Tela inicial), escolhe a Pecuária, espera ela
+ * carregada e confere o HUD,
  * a Fase parada até o primeiro input, a coleta de um Item, as Samambaias-prateadas e a
  * Fila de Fatos, a volta ao Checkpoint, e os Predadores: Captura, contato lateral e a
  * invulnerabilidade depois de voltar, e o bloqueio de entrada: o pulo segurado ao tocar o fim
- * não abre a Fase de novo na Tela inicial. Falha também se houver erro no console ou
+ * não abre a Fase de novo pelo Menu. Falha também se houver erro no console ou
  * requisição fora da origem.
  *
  * Uso: `npm run smoke`. Sai com código 1 e a lista de problemas quando algo falha.
@@ -22,6 +24,7 @@ import { SEGUNDOS_BLOQUEIO } from '../src/logica/input.js';
 
 const LIMITE_MS = 15_000;
 const CENA_TELA_INICIAL = 'tela-inicial';
+const CENA_MENU = 'menu';
 const CENA_FASE = 'fase';
 const MAPA_PECUARIA = new URL('../assets/mapas/pecuaria.tmj', import.meta.url);
 /** Quanto esperar para ver se algo se mexe (ou não), em ms. */
@@ -188,8 +191,56 @@ async function verificarPredadores(pagina, levarKiwi, checkpoint) {
 }
 
 /**
- * Segura o pulo, leva o Kiwi ao fim da Fase e confere que, na Tela inicial, o pulo que
- * continua segurado não abre a Fase de novo; soltar e apertar abre.
+ * Espera uma cena ficar ativa.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ * @param {string} cena - A chave da cena.
+ * @returns {Promise<boolean>} Se a cena ficou ativa em até 2 s.
+ */
+function esperarCena(pagina, cena) {
+  return pagina.waitForFunction((chave) => window.kiwirun.jogo.scene.isActive(chave), cena, { timeout: 2000 })
+    .then(() => true, () => false);
+}
+
+/**
+ * Da Tela inicial, confere o Menu: o título, a Pecuária sob o cursor com o Recorde vazio, os
+ * Mundos e Fases em breve marcados, e que Esc volta à Tela inicial. Termina no Menu.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, na Tela inicial.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarMenu(pagina) {
+  const problemas = [];
+  const textos = criarTextos();
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('Enter');
+  if (!(await esperarCena(pagina, CENA_MENU))) return ['Enter na Tela inicial não abriu o Menu'];
+
+  const menu = await pagina.evaluate((cena) => {
+    const { menu: navegacao, children } = window.kiwirun.jogo.scene.getScene(cena);
+    const visiveis = children.list.filter((objeto) => objeto.type === 'BitmapText').map((objeto) => objeto.text);
+    return { mundo: navegacao.mundo.id, fase: navegacao.fase?.id, textos: visiveis };
+  }, CENA_MENU);
+  if (menu.mundo !== 'economia-tecnologia' || menu.fase !== 'pecuaria') problemas.push(`cursor do Menu fora da Pecuária: ${menu.mundo} › ${menu.fase}`);
+  const esperados = ['menu.titulo', 'mundo.economia-tecnologia', 'mundo.geografia', 'fase.pecuaria', 'fase.porto', 'menu.sem_recorde', 'menu.voltar', 'menu.creditos']
+    .map((chave) => textos.t(chave));
+  esperados.push(`(${textos.t('menu.em_breve')})`);
+  for (const esperado of esperados) {
+    if (!menu.textos.includes(esperado)) problemas.push(`Menu sem o texto "${esperado}"`);
+  }
+
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('Escape');
+  if (!(await esperarCena(pagina, CENA_TELA_INICIAL))) problemas.push('Esc no Menu não voltou à Tela inicial');
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('Enter');
+  if (!(await esperarCena(pagina, CENA_MENU))) problemas.push('Enter na Tela inicial não reabriu o Menu');
+  return problemas;
+}
+
+/**
+ * Segura o pulo, leva o Kiwi ao fim da Fase e confere que, no Menu, o pulo que continua
+ * segurado não abre a Fase de novo; soltar e apertar abre.
  *
  * @param {import('playwright').Page} pagina - A página do jogo, com a Fase andando.
  * @returns {Promise<string[]>} Os problemas encontrados.
@@ -201,18 +252,17 @@ async function verificarPuloSeguradoNoFim(pagina) {
   await pagina.evaluate(([cena, x, y]) => {
     window.kiwirun.jogo.scene.getScene(cena).kiwi.body.reset(x, y);
   }, [CENA_FASE, fim.x + fim.width / 2, fim.y + fim.height / 2]);
-  await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.isActive(cena), CENA_TELA_INICIAL, { timeout: 2000 })
-    .catch(() => problemas.push('tocar o fim não voltou à Tela inicial'));
+  if (!(await esperarCena(pagina, CENA_MENU))) problemas.push('tocar o fim não voltou ao Menu');
   await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS + ESPERA_MS);
-  if (!(await pagina.evaluate((cena) => window.kiwirun.jogo.scene.isActive(cena), CENA_TELA_INICIAL))) {
-    problemas.push('o pulo segurado do fim da Fase abriu a Fase de novo na Tela inicial');
+  if (!(await pagina.evaluate((cena) => window.kiwirun.jogo.scene.isActive(cena), CENA_MENU))) {
+    problemas.push('o pulo segurado do fim da Fase abriu a Fase de novo pelo Menu');
   }
   await pagina.keyboard.up('Space');
   // O Input lê por quadro: ele precisa ver o pulo solto antes do aperto novo.
   await pagina.waitForTimeout(ESPERA_MS / 4);
   await pagina.keyboard.press('Space');
   await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.isActive(cena), CENA_FASE, { timeout: 2000 })
-    .catch(() => problemas.push('soltar e apertar Espaço na Tela inicial não abriu a Fase'));
+    .catch(() => problemas.push('soltar e apertar Espaço no Menu não abriu a Pecuária'));
   return problemas;
 }
 
@@ -274,6 +324,7 @@ async function verificarJogo(url) {
   }
 
   try {
+    problemas.push(...await verificarMenu(pagina));
     await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
     await pagina.keyboard.press('Enter');
     await pagina.waitForFunction(
@@ -289,7 +340,7 @@ async function verificarJogo(url) {
     problemas.push(...await verificarItensECheckpoints(pagina));
     problemas.push(...await verificarPuloSeguradoNoFim(pagina));
   } catch (erro) {
-    problemas.push(`Pecuária não carregou depois de apertar uma tecla: ${erro.message}`);
+    problemas.push(`Pecuária não carregou pelo Menu: ${erro.message}`);
   } finally {
     await navegador.close();
   }
@@ -304,4 +355,4 @@ if (problemas.length > 0) {
   console.error(`Smoke falhou:\n- ${problemas.join('\n- ')}`);
   process.exit(1);
 }
-console.log('Smoke ok: Tela inicial e Pecuária abertas, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores e bloqueio de entrada funcionando, sem erro no console nem requisição fora da origem.');
+console.log('Smoke ok: Tela inicial, Menu e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores e bloqueio de entrada funcionando, sem erro no console nem requisição fora da origem.');
