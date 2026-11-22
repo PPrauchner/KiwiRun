@@ -9,6 +9,10 @@
 /** Quanto tempo cada Fato fica na tela, em segundos. */
 export const DURACAO_FATO = 4;
 
+/** Largura da caixa do Fato no topo da tela, em pixels da fonte bitmap, e quantas linhas cabem. */
+export const LARGURA_FATO = 360;
+export const LINHAS_FATO = 2;
+
 /**
  * @typedef {Object} FilaDeFatos
  * @property {string | null} atual - A chave do Fato na tela, ou `null` com a fila vazia.
