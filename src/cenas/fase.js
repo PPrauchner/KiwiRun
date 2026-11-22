@@ -7,14 +7,18 @@
  * fim vence a Fase e, por ora, volta à Tela inicial. Até o primeiro mover ou pular, a Fase
  * e o cronômetro ficam parados. O HUD mostra o Tempo gasto, os Itens em "X/Y" e as
  * Samambaias-prateadas em "X/3"; pegar uma põe o seu Fato na Fila de Fatos, mostrada no topo
- * da tela sem pausar o jogo. O teclado é provisório até o Input unificado.
+ * da tela sem pausar o jogo. Os Predadores patrulham entre as pontas da sua área no mapa:
+ * cair sobre um é Captura (armadilha, quique e o nome da espécie flutuando); qualquer outro
+ * contato devolve o Kiwi ao Checkpoint, onde ele fica invulnerável, piscando, por ~1 s. O
+ * teclado é provisório até o Input unificado.
  */
-import { buscarFase, imagemItem } from '../logica/catalogo.js';
+import { buscarFase, chaveNomePredador, imagemItem } from '../logica/catalogo.js';
+import { resolverContato, SEGUNDOS_INVULNERAVEL, SEGUNDOS_ROTULO_CAPTURA } from '../logica/captura.js';
 import { criarControlePulo } from '../logica/controle-pulo.js';
 import { criarCronometro, formatarTempo } from '../logica/cronometro.js';
 import { criarFilaDeFatos, LARGURA_FATO } from '../logica/fila-fatos.js';
 import { FISICA, TILE } from '../logica/pulo.js';
-import { FONTE, TEXTURA_KIWI, TEXTURA_QUADROS_TILESET, TEXTURA_SAMAMBAIA, TEXTURA_TILESET } from './preload.js';
+import { FONTE, TEXTURA_KIWI, TEXTURA_QUADROS_TILESET, TEXTURA_SAMAMBAIA, TEXTURA_TILESET, texturaPredador } from './preload.js';
 
 /** Tamanho da hitbox do Kiwi, menor que o sprite de 18×18, e seu deslocamento nele. */
 const HITBOX = Object.freeze({ largura: 10, altura: 11, x: 4, y: 7 });
@@ -40,6 +44,17 @@ const PROFUNDIDADE_HUD = 100;
 const FOLGA_FATO = 4;
 const COR_FUNDO_FATO = 0x1b2a3a;
 const OPACIDADE_FUNDO_FATO = 0.8;
+
+/** Predador: hitbox no sprite de 18×18 e velocidade da patrulha, em pixels por segundo. */
+const HITBOX_PREDADOR = Object.freeze({ largura: 14, altura: 10, x: 2, y: 8 });
+const VELOCIDADE_PREDADOR = 30;
+/** Armadilha da Captura: a caixa que desce sobre o Predador, e quanto o rótulo sobe. */
+const COR_ARMADILHA = 0x8f563b;
+const COR_BORDA_ARMADILHA = 0x45283c;
+const SUBIDA_ROTULO = 10;
+/** Piscar do Kiwi invulnerável: trocas por segundo e opacidade na fase apagada. */
+const PISCADAS_POR_SEGUNDO = 10;
+const OPACIDADE_PISCANDO = 0.3;
 
 /** Teclas provisórias: setas/WASD para andar, Espaço, ↑ ou W para pular. */
 const TECLAS = Object.freeze({
@@ -83,6 +98,9 @@ export class Fase extends Phaser.Scene {
     /** @type {string[]} Chaves dos Fatos já encontrados, na ordem em que foram pegos. */
     this.fatosEncontrados = [];
     this.filaFatos = criarFilaDeFatos();
+    this.capturas = 0;
+    /** Segundos de invulnerabilidade que restam depois de voltar ao Checkpoint. */
+    this.invulneravel = 0;
   }
 
   preload() {
@@ -127,6 +145,7 @@ export class Fase extends Phaser.Scene {
     this.criarItens(objetos.filter((objeto) => objeto.name === 'item'));
     this.criarSamambaias(objetos.filter((objeto) => objeto.name === 'samambaia'));
     for (const checkpoint of objetos.filter((objeto) => objeto.name === 'checkpoint')) this.criarCheckpoint(checkpoint);
+    this.criarPredadores(objetos.filter((objeto) => objeto.name === 'predador'));
 
     this.configurarCamera(mapa);
     this.configurarTeclado();
@@ -190,6 +209,70 @@ export class Fase extends Phaser.Scene {
     this.fatosEncontrados.push(chave);
     this.filaFatos.enfileirar(chave);
     this.atualizarHudSamambaias();
+  }
+
+  /**
+   * Põe cada Predador na ponta esquerda da sua área, já andando para a direita; a física
+   * pausada o segura até o primeiro mover ou pular.
+   *
+   * @param {Phaser.Types.Tilemaps.TiledObject[]} areas - As áreas `predador` do mapa.
+   */
+  criarPredadores(areas) {
+    this.predadores = this.physics.add.group({ allowGravity: false, immovable: true });
+    for (const { x, y, width: largura, height: altura, type: especie } of areas) {
+      const predador = this.predadores.create(x + TILE / 2, y + altura - TILE / 2, texturaPredador(especie));
+      predador.body.setSize(HITBOX_PREDADOR.largura, HITBOX_PREDADOR.altura).setOffset(HITBOX_PREDADOR.x, HITBOX_PREDADOR.y);
+      predador.setData({ especie, minX: x + TILE / 2, maxX: x + largura - TILE / 2 });
+      predador.setVelocityX(VELOCIDADE_PREDADOR);
+    }
+    this.physics.add.overlap(this.kiwi, this.predadores, (_kiwi, predador) => this.tocarPredador(predador));
+  }
+
+  /** Vira cada Predador ao chegar a uma ponta da patrulha. */
+  patrulhar() {
+    for (const predador of this.predadores.getChildren()) {
+      const { minX, maxX } = predador.data.values;
+      if (predador.x <= minX) predador.setVelocityX(VELOCIDADE_PREDADOR);
+      else if (predador.x >= maxX) predador.setVelocityX(-VELOCIDADE_PREDADOR);
+      predador.setFlipX(predador.body.velocity.x < 0);
+    }
+  }
+
+  /** @param {Phaser.Types.Physics.Arcade.SpriteWithDynamicBody} predador - O Predador que o Kiwi tocou. */
+  tocarPredador(predador) {
+    if (this.venceu || !predador.active) return;
+    const { body } = this.kiwi;
+    const efeito = resolverContato({
+      vy: body.velocity.y,
+      baseAnterior: body.prev.y + body.height,
+      topoPredador: predador.body.top,
+      invulneravel: this.invulneravel > 0,
+    });
+    if (efeito === 'captura') this.capturar(predador);
+    else if (efeito === 'checkpoint') this.voltarAoCheckpoint();
+  }
+
+  /**
+   * Captura: o Predador sai da Fase numa armadilha (nunca morte), o Kiwi quica e o nome da
+   * espécie flutua por ~1 s no idioma atual, fora da Fila de Fatos.
+   *
+   * @param {Phaser.Types.Physics.Arcade.SpriteWithDynamicBody} predador - O Predador capturado.
+   */
+  capturar(predador) {
+    const { x, y } = predador;
+    const especie = predador.getData('especie');
+    predador.disableBody(true, false);
+    this.capturas += 1;
+    this.kiwi.body.setVelocityY(this.controlePulo.quicar());
+
+    const duracao = SEGUNDOS_ROTULO_CAPTURA * 1000;
+    const armadilha = this.add.rectangle(x, y - TILE, TILE, TILE, COR_ARMADILHA).setStrokeStyle(1, COR_BORDA_ARMADILHA);
+    this.tweens.add({ targets: armadilha, y, duration: duracao / 4, onComplete: () => predador.destroy() });
+    this.tweens.add({ targets: armadilha, alpha: 0, delay: duracao / 2, duration: duracao / 2, onComplete: () => armadilha.destroy() });
+
+    const nome = this.registry.get('textos').t(chaveNomePredador(especie));
+    const rotulo = this.add.bitmapText(x, y - TILE, FONTE, nome, TAMANHO_FONTE_HUD).setOrigin(0.5, 1).setDepth(PROFUNDIDADE_HUD - 1);
+    this.tweens.add({ targets: rotulo, y: rotulo.y - SUBIDA_ROTULO, duration: duracao, onComplete: () => rotulo.destroy() });
   }
 
   /**
@@ -292,6 +375,8 @@ export class Fase extends Phaser.Scene {
    */
   passoDoKiwi(dt) {
     if (this.venceu) return;
+    this.patrulhar();
+    this.piscarInvulneravel(dt);
     const segurado = (teclas) => teclas.some((tecla) => tecla.isDown);
     const direcao = Number(segurado(this.teclas.direita)) - Number(segurado(this.teclas.esquerda));
     const { body } = this.kiwi;
@@ -325,8 +410,17 @@ export class Fase extends Phaser.Scene {
     else this.kiwi.anims.play('kiwi-andar', true);
   }
 
+  /** Devolve o Kiwi ao último Checkpoint, invulnerável por ~1 s. */
   voltarAoCheckpoint() {
     this.kiwi.body.reset(this.checkpoint.x, this.checkpoint.y);
+    this.invulneravel = SEGUNDOS_INVULNERAVEL;
+  }
+
+  /** @param {number} dt - Segundos do passo. */
+  piscarInvulneravel(dt) {
+    this.invulneravel = Math.max(0, this.invulneravel - dt);
+    const apagado = this.invulneravel > 0 && Math.floor(this.invulneravel * PISCADAS_POR_SEGUNDO) % 2 === 1;
+    this.kiwi.setAlpha(apagado ? OPACIDADE_PISCANDO : 1);
   }
 
   vencer() {

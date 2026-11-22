@@ -1,6 +1,6 @@
 /**
  * @file Gera os PNGs próprios na grade de 18×18: o sprite do Kiwi (faixa de quadros),
- * um sprite por Item e o da Samambaia-prateada, desenhados por código numa paleta de pixel art. Os tiles vêm do Kenney Pixel
+ * um sprite por Item, o da Samambaia-prateada e um por espécie de Predador, desenhados por código numa paleta de pixel art. Os tiles vêm do Kenney Pixel
  * Platformer (CC0). Sem dependências além do Node.
  *
  * Uso: `npm run gerar:sprites`.
@@ -10,7 +10,7 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { codificarPng } from './png.js';
 import { TILE } from '../src/logica/pulo.js';
-import { imagemItem } from '../src/logica/catalogo.js';
+import { imagemItem, imagemPredador } from '../src/logica/catalogo.js';
 
 const RAIZ_REPO = fileURLToPath(new URL('..', import.meta.url));
 export const IMAGEM_KIWI = 'assets/sprites/kiwi.png';
@@ -136,6 +136,98 @@ function desenhoSamambaia(x, y) {
 }
 
 /**
+ * @typedef {Object} FormaPredador
+ * Um Predador visto de lado, virado para a direita: elipses em pixels (centro e raios).
+ * @property {{ pelo: number, barriga: number, escura: number, nariz: number, cauda: number }} cores
+ * @property {[number, number, number, number]} corpo - cx, cy, rx, ry.
+ * @property {[number, number, number, number]} cabeca - cx, cy, rx, ry.
+ * @property {[number, number, number]} orelha - cx, cy, raio.
+ * @property {[number, number]} olho
+ * @property {[number, number]} nariz
+ * @property {number[]} pernas - Colunas das pernas, que descem até a base do quadro.
+ * @property {number} topoPernas - Linha onde as pernas começam.
+ * @property {(x: number, y: number) => boolean} cauda - Se o pixel é da cauda.
+ */
+
+/**
+ * Se o centro do pixel está dentro da elipse.
+ *
+ * @param {number} x
+ * @param {number} y
+ * @param {number[]} elipse - cx, cy, rx, ry.
+ * @returns {boolean} Se está dentro.
+ */
+function naElipse(x, y, [cx, cy, rx, ry]) {
+  return ((x + 0.5 - cx) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2 <= 1;
+}
+
+/**
+ * Desenha um Predador a partir da sua forma: corpo e cabeça de pelo, barriga clara embaixo,
+ * orelha, olho, nariz, pernas e cauda.
+ *
+ * @param {FormaPredador} forma - A forma da espécie.
+ * @returns {Desenho} O desenho.
+ */
+function desenhoPredador(forma) {
+  const { cores, corpo, cabeca, orelha, olho, nariz, pernas, topoPernas, cauda } = forma;
+  return (x, y) => {
+    if (x === olho[0] && y === olho[1]) return COR.olho;
+    if (x === nariz[0] && y === nariz[1]) return cores.nariz;
+    if (naElipse(x, y, cabeca)) return cores.pelo;
+    if (naElipse(x, y, corpo)) return y + 0.5 > corpo[1] + corpo[3] / 3 ? cores.barriga : cores.pelo;
+    if (naElipse(x, y, [orelha[0], orelha[1], orelha[2], orelha[2]])) return cores.escura;
+    if (pernas.includes(x) && y >= topoPernas) return cores.escura;
+    if (cauda(x, y)) return cores.cauda;
+    return null;
+  };
+}
+
+/** Forma de cada espécie de Predador, pelo id do catálogo. */
+const FORMAS_PREDADORES = Object.freeze({
+  // Arminho: comprido e baixo, dorso castanho, barriga creme e ponta da cauda preta.
+  arminho: {
+    cores: { pelo: 0x8a5a32, barriga: 0xf0dcb0, escura: 0x45283c, nariz: 0x222034, cauda: 0x222034 },
+    corpo: [8, 12, 6.5, 2.8],
+    cabeca: [14.5, 10.5, 3, 2.4],
+    orelha: [13, 8, 1],
+    olho: [15, 10],
+    nariz: [17, 11],
+    pernas: [4, 5, 11, 12],
+    topoPernas: 14,
+    cauda: (x, y) => x <= 2 && (y === 10 || y === 11),
+  },
+  // Gambá-australiano: redondo, cinza, orelhas grandes, nariz rosa e cauda cheia escura.
+  gamba: {
+    cores: { pelo: 0x8b8f99, barriga: 0xd8d8d8, escura: 0x3f3f4a, nariz: 0xd77bba, cauda: 0x3f3f4a },
+    corpo: [9.5, 11.5, 6, 4],
+    cabeca: [14.5, 9, 3, 2.8],
+    orelha: [13, 5.5, 1.5],
+    olho: [15, 8],
+    nariz: [17, 9],
+    pernas: [6, 7, 12, 13],
+    topoPernas: 15,
+    cauda: (x, y) => naElipse(x, y, [2.5, 9, 2.5, 3.5]),
+  },
+  // Rato: pequeno, pardo-acinzentado, orelha rosada e cauda fina e comprida.
+  rato: {
+    cores: { pelo: 0x6e6460, barriga: 0xb3a8a0, escura: 0xc98c8c, nariz: 0xd77bba, cauda: 0xc98c8c },
+    corpo: [9.5, 12.5, 5, 3],
+    cabeca: [14, 11, 3, 2.4],
+    orelha: [12.5, 8.5, 1.5],
+    olho: [15, 10],
+    nariz: [17, 11],
+    pernas: [7, 12],
+    topoPernas: 15,
+    cauda: (x, y) => x <= 4 && y === 13 + Math.floor((4 - x) / 2),
+  },
+});
+
+/** Desenho de cada espécie de Predador, pelo id do catálogo. */
+export const DESENHOS_PREDADORES = Object.freeze(
+  Object.fromEntries(Object.entries(FORMAS_PREDADORES).map(([especie, forma]) => [especie, desenhoPredador(forma)])),
+);
+
+/**
  * Junta desenhos 18×18 numa grade, da esquerda para a direita e de cima para baixo.
  *
  * @param {Desenho[]} desenhos - Os quadros, em ordem.
@@ -172,4 +264,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   }
   await gravar(IMAGEM_SAMAMBAIA, montarGrade([desenhoSamambaia], 1));
   console.log(`Gerado ${IMAGEM_SAMAMBAIA}`);
+  for (const [especie, desenho] of Object.entries(DESENHOS_PREDADORES)) {
+    await gravar(imagemPredador(especie), montarGrade([desenho], 1));
+    console.log(`Gerado ${imagemPredador(especie)}`);
+  }
 }

@@ -80,6 +80,24 @@ export const MUNDOS = Object.freeze([
 export const PREDADORES = Object.freeze(['arminho', 'gamba', 'rato']);
 
 /**
+ * @param {string} especie - Espécie de Predador do catálogo.
+ * @returns {string} A chave do nome da espécie nos Textos.
+ */
+export function chaveNomePredador(especie) {
+  return `predador.${especie}`;
+}
+
+/**
+ * Caminho do sprite de uma espécie de Predador, gerado por script, a partir da raiz do site.
+ *
+ * @param {string} especie - Espécie de Predador do catálogo.
+ * @returns {string} O caminho do PNG 18×18.
+ */
+export function imagemPredador(especie) {
+  return `assets/sprites/predadores/${especie}.png`;
+}
+
+/**
  * Busca uma Fase pelo id, em qualquer Mundo.
  *
  * @param {string} id - Id da Fase.

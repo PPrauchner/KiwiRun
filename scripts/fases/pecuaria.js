@@ -1,7 +1,7 @@
 /**
  * @file Descrição da Fase Pecuária para o gerador: trechos de chão e vãos, da esquerda
  * para a direita, plataformas de mão única, Itens (lã no pasto, leite na ordenha),
- * Checkpoints e as três Samambaias-prateadas. Alturas em tiles, contadas da base do mapa.
+ * Checkpoints, as três Samambaias-prateadas e os Predadores com suas patrulhas. Alturas em tiles, contadas da base do mapa.
  */
 export default {
   altura: 20,
@@ -25,6 +25,13 @@ export default {
     { coluna: 72, largura: 5, alturaSobreChao: 3 },
   ],
   checkpoints: [26, 44, 66],
+  // Uma patrulha por trecho plano, sem cobrir nenhum Checkpoint.
+  predadores: [
+    { especie: 'rato', de: 8, ate: 12 },
+    { especie: 'arminho', de: 36, ate: 41 },
+    { especie: 'gamba', de: 68, ate: 74 },
+    { especie: 'rato', de: 79, ate: 86 },
+  ],
   itens: [
     { coluna: 6, item: 'la', alturaSobreChao: 1 },
     { coluna: 9, item: 'la', alturaSobreChao: 1 },

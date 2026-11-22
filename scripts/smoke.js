@@ -2,8 +2,9 @@
  * @file Smoke no navegador: abre o jogo servido localmente no Chromium (Playwright),
  * espera a Tela inicial, aperta uma tecla, espera a Pecuária carregada e confere o HUD,
  * a Fase parada até o primeiro input, a coleta de um Item, as Samambaias-prateadas e a
- * Fila de Fatos, e a volta ao Checkpoint. Falha também se houver erro no console ou
- * requisição fora da origem.
+ * Fila de Fatos, a volta ao Checkpoint, e os Predadores: Captura, contato lateral e a
+ * invulnerabilidade depois de voltar. Falha também se houver erro no console ou requisição
+ * fora da origem.
  *
  * Uso: `npm run smoke`. Sai com código 1 e a lista de problemas quando algo falha.
  */
@@ -14,6 +15,8 @@ import { criarTextos } from '../src/logica/textos.js';
 import { VERSAO } from '../src/logica/versao.js';
 import { formatarTempo } from '../src/logica/cronometro.js';
 import { DURACAO_FATO } from '../src/logica/fila-fatos.js';
+import { chaveNomePredador } from '../src/logica/catalogo.js';
+import { SEGUNDOS_INVULNERAVEL } from '../src/logica/captura.js';
 
 const LIMITE_MS = 15_000;
 const CENA_TELA_INICIAL = 'tela-inicial';
@@ -37,8 +40,9 @@ async function objetosDaPecuaria(nome) {
  * Lê da cena Fase o que o smoke confere: textos do HUD, posição do Kiwi e o cronômetro.
  *
  * @param {import('playwright').Page} pagina - A página do jogo.
- * @returns {Promise<{ textos: string[], x: number, y: number, segundos: number, fatosEncontrados: number }>}
- *   O estado.
+ * @returns {Promise<{ textos: string[], x: number, y: number, vy: number, segundos: number,
+ *   fatosEncontrados: number, capturas: number, invulneravel: number, predadores: { x: number, y: number }[] }>}
+ *   O estado; `predadores` são os que ainda estão na Fase.
  */
 function estadoDaFase(pagina) {
   return pagina.evaluate((cena) => {
@@ -47,7 +51,20 @@ function estadoDaFase(pagina) {
       .filter((objeto) => objeto.type === 'BitmapText' && objeto.visible)
       .map((objeto) => objeto.text);
     const fatosEncontrados = fase.fatosEncontrados?.length ?? 0;
-    return { textos, x: fase.kiwi.x, y: fase.kiwi.y, segundos: fase.cronometro.segundos, fatosEncontrados };
+    const predadores = fase.predadores.getChildren()
+      .filter((predador) => predador.body.enable)
+      .map((predador) => ({ x: predador.x, y: predador.y }));
+    return {
+      textos,
+      x: fase.kiwi.x,
+      y: fase.kiwi.y,
+      vy: fase.kiwi.body.velocity.y,
+      segundos: fase.cronometro.segundos,
+      fatosEncontrados,
+      capturas: fase.capturas,
+      invulneravel: fase.invulneravel,
+      predadores,
+    };
   }, CENA_FASE);
 }
 
@@ -69,12 +86,14 @@ async function verificarItensECheckpoints(pagina) {
   if (!parado.textos.includes(formatarTempo(0))) problemas.push(`HUD sem o tempo zerado: ${parado.textos}`);
   if (!parado.textos.includes(`0/${itens.length}`)) problemas.push(`HUD sem "0/${itens.length}": ${parado.textos}`);
   if (parado.y !== antes.y || parado.segundos !== 0) problemas.push('a Fase se mexeu antes do primeiro input');
+  if (JSON.stringify(parado.predadores) !== JSON.stringify(antes.predadores)) problemas.push('um Predador se mexeu antes do primeiro input');
 
   await pagina.keyboard.down('ArrowRight');
   await pagina.waitForTimeout(ESPERA_MS);
   await pagina.keyboard.up('ArrowRight');
   const andou = await estadoDaFase(pagina);
   if (andou.x <= antes.x || andou.segundos <= 0) problemas.push('mover não deu a partida na Fase e no cronômetro');
+  if (andou.predadores.every((predador, i) => predador.x === antes.predadores[i].x)) problemas.push('os Predadores não patrulham depois do primeiro input');
 
   // Leva o Kiwi ao primeiro Item, depois ao Checkpoint, e o derruba na Zona de queda.
   const levarKiwi = (x, y) => pagina.evaluate(([cena, alvoX, alvoY]) => {
@@ -114,6 +133,52 @@ async function verificarItensECheckpoints(pagina) {
   if (!voltou.textos.includes(`2/${samambaias.length}`) || voltou.fatosEncontrados !== 2) {
     problemas.push('voltar ao Checkpoint perdeu as Samambaias-prateadas ou os Fatos encontrados');
   }
+  problemas.push(...await verificarPredadores(pagina, levarKiwi, checkpoint));
+  return problemas;
+}
+
+/**
+ * Confere a Captura (cair sobre um Predador), a volta ao Checkpoint por contato lateral e a
+ * invulnerabilidade logo depois, sem o Predador capturado voltar.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, com a Fase andando.
+ * @param {(x: number, y: number) => Promise<void>} levarKiwi - Põe o Kiwi num ponto.
+ * @param {{ x: number, y: number }} checkpoint - O Checkpoint ativo.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarPredadores(pagina, levarKiwi, checkpoint) {
+  const problemas = [];
+  const inicio = await estadoDaFase(pagina);
+  const [alvo] = inicio.predadores;
+  const [area] = await objetosDaPecuaria('predador');
+  const nome = criarTextos().t(chaveNomePredador(area.type));
+
+  await levarKiwi(alvo.x, alvo.y - 40);
+  await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.getScene(cena).capturas > 0, CENA_FASE, { timeout: 2000 }).catch(() => {});
+  const capturou = await estadoDaFase(pagina);
+  if (capturou.capturas !== 1 || capturou.predadores.length !== inicio.predadores.length - 1) problemas.push('cair sobre um Predador não o capturou');
+  if (capturou.vy >= 0) problemas.push('a Captura não fez o Kiwi quicar');
+  if (!capturou.textos.includes(nome)) problemas.push(`a Captura não mostrou o nome da espécie "${nome}"`);
+
+  // Espera o Kiwi assentar (fim do quique e do rótulo) e encosta de lado no próximo Predador.
+  await levarKiwi(checkpoint.x, checkpoint.y - 9);
+  await pagina.waitForTimeout(ESPERA_MS * 3);
+  const { predadores: [proximo] } = await estadoDaFase(pagina);
+  await levarKiwi(proximo.x, proximo.y);
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  const voltou = await estadoDaFase(pagina);
+  if (Math.abs(voltou.x - checkpoint.x) > 4) problemas.push(`encostar de lado num Predador não devolveu o Kiwi ao Checkpoint: ${voltou.x}`);
+  if (!(voltou.invulneravel > 0)) problemas.push('voltar ao Checkpoint não deixou o Kiwi invulnerável');
+  if (voltou.predadores.length !== capturou.predadores.length || voltou.capturas !== 1) problemas.push('o Predador capturado voltou ou a Captura se perdeu');
+
+  // Ainda invulnerável: encostar de lado atravessa sem efeito.
+  const { predadores: [deNovo] } = voltou;
+  await levarKiwi(deNovo.x, deNovo.y);
+  await pagina.waitForTimeout(50);
+  const atravessou = await estadoDaFase(pagina);
+  if (Math.abs(atravessou.x - checkpoint.x) <= 4) problemas.push('invulnerável, o contato lateral ainda devolveu o Kiwi ao Checkpoint');
+  await pagina.waitForTimeout(SEGUNDOS_INVULNERAVEL * 1000 + ESPERA_MS);
+  if ((await estadoDaFase(pagina)).invulneravel !== 0) problemas.push('a invulnerabilidade não acabou depois de ~1 s');
   return problemas;
 }
 
@@ -203,4 +268,4 @@ if (problemas.length > 0) {
   console.error(`Smoke falhou:\n- ${problemas.join('\n- ')}`);
   process.exit(1);
 }
-console.log('Smoke ok: Tela inicial e Pecuária abertas, HUD, Itens, Samambaias-prateadas, Fatos e Checkpoint funcionando, sem erro no console nem requisição fora da origem.');
+console.log('Smoke ok: Tela inicial e Pecuária abertas, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint e Predadores funcionando, sem erro no console nem requisição fora da origem.');
