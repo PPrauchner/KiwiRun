@@ -1,6 +1,6 @@
 /**
- * @file Gera os PNGs próprios na grade de 18×18: o sprite do Kiwi (faixa de quadros) e
- * um sprite por Item, desenhados por código numa paleta de pixel art. Os tiles vêm do Kenney Pixel
+ * @file Gera os PNGs próprios na grade de 18×18: o sprite do Kiwi (faixa de quadros),
+ * um sprite por Item e o da Samambaia-prateada, desenhados por código numa paleta de pixel art. Os tiles vêm do Kenney Pixel
  * Platformer (CC0). Sem dependências além do Node.
  *
  * Uso: `npm run gerar:sprites`.
@@ -104,6 +104,37 @@ function desenhoLeite(x, y) {
 /** Desenho de cada Item, pelo id do catálogo. */
 export const DESENHOS_ITENS = Object.freeze({ la: desenhoLa, leite: desenhoLeite });
 
+export const IMAGEM_SAMAMBAIA = 'assets/sprites/samambaia.png';
+
+/** Paleta da Samambaia-prateada: o verso prateado da folha, que dá nome à planta. */
+const COR_SAMAMBAIA = Object.freeze({
+  folha: 0xe4ecf2,
+  borda: 0x9badb7,
+  haste: 0x6a8a3a,
+});
+
+/** Colunas da haste e linhas onde a fronde começa e termina. */
+const HASTE_X = 9;
+const FRONDE_TOPO = 1;
+const FRONDE_BASE = 15;
+
+/**
+ * Samambaia-prateada: uma fronde de haste reta com folíolos que sobem em diagonal e
+ * encurtam para a ponta, prateados com a ponta mais escura.
+ *
+ * @type {Desenho}
+ */
+function desenhoSamambaia(x, y) {
+  const distancia = Math.abs(x - HASTE_X);
+  if (distancia === 0) return y >= FRONDE_TOPO && y <= 17 ? COR_SAMAMBAIA.haste : null;
+  // O folíolo sobe um pixel a cada dois que se afasta da haste.
+  const linha = y + Math.floor(distancia / 2);
+  if (linha % 2 === 0 || linha < FRONDE_TOPO + 2 || linha > FRONDE_BASE) return null;
+  const comprimento = Math.min(6, Math.floor((linha - FRONDE_TOPO) / 2));
+  if (distancia > comprimento) return null;
+  return distancia === comprimento ? COR_SAMAMBAIA.borda : COR_SAMAMBAIA.folha;
+}
+
 /**
  * Junta desenhos 18×18 numa grade, da esquerda para a direita e de cima para baixo.
  *
@@ -139,4 +170,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     await gravar(imagemItem(item), montarGrade([desenho], 1));
     console.log(`Gerado ${imagemItem(item)}`);
   }
+  await gravar(IMAGEM_SAMAMBAIA, montarGrade([desenhoSamambaia], 1));
+  console.log(`Gerado ${IMAGEM_SAMAMBAIA}`);
 }

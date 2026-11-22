@@ -15,6 +15,8 @@ export const TILES = Object.freeze({
   nuvem: 156,
   arbusto: 124,
   mastro: 131,
+  /** Copa de árvore de um tile só: cobre por inteiro o que estiver atrás. */
+  folhagem: 16,
 });
 
 export const COLUNAS = 20;

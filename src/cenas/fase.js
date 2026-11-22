@@ -3,15 +3,18 @@
  *
  * O Kiwi anda e pula (física Arcade em passo fixo de 60/s); a borda inferior do mapa é
  * Zona de queda e devolve o Kiwi ao último Checkpoint por que passou (o início é o
- * primeiro), mantendo os Itens já coletados; tocar o fim vence a Fase e, por ora, volta à
- * Tela inicial. Até o primeiro mover ou pular, a Fase e o cronômetro ficam parados. O HUD
- * mostra o Tempo gasto e os Itens em "X/Y". O teclado é provisório até o Input unificado.
+ * primeiro), mantendo os Itens, as Samambaias-prateadas e os Fatos já encontrados; tocar o
+ * fim vence a Fase e, por ora, volta à Tela inicial. Até o primeiro mover ou pular, a Fase
+ * e o cronômetro ficam parados. O HUD mostra o Tempo gasto, os Itens em "X/Y" e as
+ * Samambaias-prateadas em "X/3"; pegar uma põe o seu Fato na Fila de Fatos, mostrada no topo
+ * da tela sem pausar o jogo. O teclado é provisório até o Input unificado.
  */
 import { buscarFase, imagemItem } from '../logica/catalogo.js';
 import { criarControlePulo } from '../logica/controle-pulo.js';
 import { criarCronometro, formatarTempo } from '../logica/cronometro.js';
+import { criarFilaDeFatos, LARGURA_FATO } from '../logica/fila-fatos.js';
 import { FISICA, TILE } from '../logica/pulo.js';
-import { FONTE, TEXTURA_KIWI, TEXTURA_QUADROS_TILESET, TEXTURA_TILESET } from './preload.js';
+import { FONTE, TEXTURA_KIWI, TEXTURA_QUADROS_TILESET, TEXTURA_SAMAMBAIA, TEXTURA_TILESET } from './preload.js';
 
 /** Tamanho da hitbox do Kiwi, menor que o sprite de 18×18, e seu deslocamento nele. */
 const HITBOX = Object.freeze({ largura: 10, altura: 11, x: 4, y: 7 });
@@ -33,6 +36,10 @@ const TINTA_INATIVO = 0x777777;
 const TAMANHO_FONTE_HUD = 12;
 const MARGEM_HUD = 6;
 const PROFUNDIDADE_HUD = 100;
+/** Faixa escura atrás do Fato, para ler sobre o céu: folga em volta do texto e opacidade. */
+const FOLGA_FATO = 4;
+const COR_FUNDO_FATO = 0x1b2a3a;
+const OPACIDADE_FUNDO_FATO = 0.8;
 
 /** Teclas provisórias: setas/WASD para andar, Espaço, ↑ ou W para pular. */
 const TECLAS = Object.freeze({
@@ -73,6 +80,9 @@ export class Fase extends Phaser.Scene {
     this.chaveMapa = `mapa-${this.fase.id}`;
     this.venceu = false;
     this.coletados = 0;
+    /** @type {string[]} Chaves dos Fatos já encontrados, na ordem em que foram pegos. */
+    this.fatosEncontrados = [];
+    this.filaFatos = criarFilaDeFatos();
   }
 
   preload() {
@@ -115,6 +125,7 @@ export class Fase extends Phaser.Scene {
       });
     }
     this.criarItens(objetos.filter((objeto) => objeto.name === 'item'));
+    this.criarSamambaias(objetos.filter((objeto) => objeto.name === 'samambaia'));
     for (const checkpoint of objetos.filter((objeto) => objeto.name === 'checkpoint')) this.criarCheckpoint(checkpoint);
 
     this.configurarCamera(mapa);
@@ -139,6 +150,8 @@ export class Fase extends Phaser.Scene {
     }
     this.cronometro.avancar(delta / 1000);
     this.hudTempo.setText(formatarTempo(this.cronometro.segundos));
+    this.filaFatos.avancar(delta / 1000);
+    this.mostrarFato(this.filaFatos.atual);
   }
 
   /** @returns {boolean} Se o jogador está movendo ou acabou de pular. */
@@ -160,6 +173,23 @@ export class Fase extends Phaser.Scene {
     item.destroy();
     this.coletados += 1;
     this.atualizarHudItens();
+  }
+
+  /** @param {Phaser.Types.Tilemaps.TiledObject[]} samambaias - Os pontos `samambaia` do mapa. */
+  criarSamambaias(samambaias) {
+    this.totalSamambaias = samambaias.length;
+    const grupo = this.physics.add.staticGroup();
+    for (const { x, y, type } of samambaias) grupo.create(x, y, TEXTURA_SAMAMBAIA).setData('chaveFato', type);
+    this.physics.add.overlap(this.kiwi, grupo, (_kiwi, samambaia) => this.pegarSamambaia(samambaia));
+  }
+
+  /** @param {Phaser.Physics.Arcade.Sprite} samambaia - A Samambaia-prateada que o Kiwi tocou. */
+  pegarSamambaia(samambaia) {
+    const chave = samambaia.getData('chaveFato');
+    samambaia.destroy();
+    this.fatosEncontrados.push(chave);
+    this.filaFatos.enfileirar(chave);
+    this.atualizarHudSamambaias();
   }
 
   /**
@@ -193,10 +223,36 @@ export class Fase extends Phaser.Scene {
     // Alinhado à direita: o texto cresce para a esquerda sem cobrir o ícone.
     this.hudItens = fixo(this.add.bitmapText(largura - MARGEM_HUD - larguraIcone, MARGEM_HUD, FONTE, '', TAMANHO_FONTE_HUD).setOrigin(1, 0));
     this.atualizarHudItens();
+
+    // Logo abaixo dos Itens: as Samambaias-prateadas, com o mesmo alinhamento.
+    const linhaSamambaias = MARGEM_HUD + TILE;
+    fixo(this.add.image(largura - MARGEM_HUD, linhaSamambaias + TAMANHO_FONTE_HUD / 2, TEXTURA_SAMAMBAIA).setOrigin(1, 0.5));
+    this.hudSamambaias = fixo(this.add.bitmapText(largura - MARGEM_HUD - TILE - MARGEM_HUD / 2, linhaSamambaias, FONTE, '', TAMANHO_FONTE_HUD).setOrigin(1, 0));
+    this.atualizarHudSamambaias();
+
+    // O Fato da vez, centrado no topo, quebrado em até 2 linhas sobre uma faixa escura.
+    this.fundoFato = fixo(this.add.rectangle(largura / 2, MARGEM_HUD - FOLGA_FATO, 0, 0, COR_FUNDO_FATO, OPACIDADE_FUNDO_FATO).setOrigin(0.5, 0));
+    this.hudFato = fixo(this.add.bitmapText(largura / 2, MARGEM_HUD, FONTE, '', TAMANHO_FONTE_HUD).setOrigin(0.5, 0).setCenterAlign().setMaxWidth(LARGURA_FATO));
+    this.chaveFatoNaTela = null;
+    this.mostrarFato(null);
   }
 
   atualizarHudItens() {
     this.hudItens.setText(`${this.coletados}/${this.totalItens}`);
+  }
+
+  atualizarHudSamambaias() {
+    this.hudSamambaias.setText(`${this.fatosEncontrados.length}/${this.totalSamambaias}`);
+  }
+
+  /** @param {string | null} chave - O Fato a mostrar no topo, ou `null` para nenhum. */
+  mostrarFato(chave) {
+    if (chave === this.chaveFatoNaTela) return;
+    this.chaveFatoNaTela = chave;
+    const visivel = chave !== null;
+    this.hudFato.setText(visivel ? this.registry.get('textos').t(chave) : '').setVisible(visivel);
+    const { width: largura, height: altura } = this.hudFato.getTextBounds().global;
+    this.fundoFato.setSize(largura + FOLGA_FATO * 2, altura + FOLGA_FATO * 2).setVisible(visivel);
   }
 
   /** @returns {Phaser.Types.Physics.Arcade.SpriteWithDynamicBody} O Kiwi no Checkpoint. */
