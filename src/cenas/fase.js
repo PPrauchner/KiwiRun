@@ -4,7 +4,7 @@
  * O Kiwi anda e pula (física Arcade em passo fixo de 60/s); a borda inferior do mapa é
  * Zona de queda e devolve o Kiwi ao último Checkpoint por que passou (o início é o
  * primeiro), mantendo os Itens, as Samambaias-prateadas e os Fatos já encontrados; tocar o
- * fim vence a Fase e, por ora, volta à Tela inicial. Até o primeiro mover ou pular, a Fase
+ * fim vence a Fase e, até o Placar existir, volta ao Menu. Até o primeiro mover ou pular, a Fase
  * e o cronômetro ficam parados. O HUD mostra o Tempo gasto, os Itens em "X/Y" e as
  * Samambaias-prateadas em "X/3"; pegar uma põe o seu Fato na Fila de Fatos, mostrada no topo
  * da tela sem pausar o jogo. Os Predadores patrulham entre as pontas da sua área no mapa:
@@ -413,6 +413,6 @@ export class Fase extends Phaser.Scene {
     if (this.venceu) return;
     this.venceu = true;
     this.cronometro.parar();
-    this.scene.start('tela-inicial');
+    this.scene.start('menu');
   }
 }
