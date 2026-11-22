@@ -77,3 +77,18 @@ test('soltar o botão caindo não muda a queda', () => {
 
   assert.equal(passo(controle, { vy: 40 }), 40);
 });
+
+test('o quique da Captura sobe como um pulo segurado enquanto o botão segue apertado', () => {
+  const controle = criarControlePulo();
+  const vy = controle.quicar();
+
+  assert.equal(vy, -FISICA.velocidadePulo);
+  assert.equal(passo(controle, { segurando: true, vy }), vy);
+});
+
+test('soltar o botão no quique corta a subida, como num pulo curto', () => {
+  const controle = criarControlePulo();
+  const vy = controle.quicar();
+
+  assert.equal(passo(controle, { segurando: false, vy }), -FISICA.velocidadeCorte);
+});

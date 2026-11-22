@@ -7,6 +7,8 @@
  * recusa é o gerador de Fase.
  */
 
+import { chaveNomePredador } from './catalogo.js';
+
 /**
  * @typedef {Object} Problema
  * @property {string} regra - Código curto da regra violada.
@@ -88,8 +90,16 @@ export function validarFase(fase, mapa, contexto) {
   for (const { type: item } of comNome('item')) {
     if (!fase.itens.includes(item)) problema('item', `Item ${item} fora do catálogo da Fase`);
   }
-  for (const { type: especie } of comNome('predador')) {
-    if (!contexto.predadores.includes(especie)) problema('predador', `espécie de Predador ${especie} fora do catálogo`);
+  for (const especie of new Set(comNome('predador').map((predador) => predador.type))) {
+    if (!contexto.predadores.includes(especie)) {
+      problema('predador', `espécie de Predador ${especie} fora do catálogo`);
+      continue;
+    }
+    for (const [idioma, dicionario] of Object.entries(contexto.dicionarios)) {
+      if (!Object.hasOwn(dicionario, chaveNomePredador(especie))) {
+        problema('predador-sem-texto', `espécie de Predador ${especie} sem nome em ${idioma}`);
+      }
+    }
   }
 
   return problemas;

@@ -10,8 +10,8 @@ import { DICIONARIOS as TEXTOS } from '../src/logica/textos.js';
 import { validarCatalogo, validarFase } from '../src/logica/validador-fase.js';
 
 const DICIONARIOS = {
-  pt: { 'fato.teste.1': 'um', 'fato.teste.2': 'dois', 'fato.teste.3': 'três' },
-  en: { 'fato.teste.1': 'one', 'fato.teste.2': 'two', 'fato.teste.3': 'three' },
+  pt: { 'fato.teste.1': 'um', 'fato.teste.2': 'dois', 'fato.teste.3': 'três', 'predador.rato': 'Rato' },
+  en: { 'fato.teste.1': 'one', 'fato.teste.2': 'two', 'fato.teste.3': 'three', 'predador.rato': 'Rat' },
 };
 const CONTEXTO = { dicionarios: DICIONARIOS, predadores: ['rato'] };
 
@@ -142,6 +142,13 @@ test('espécie de Predador fora do catálogo é problema', () => {
   objetos(mapa)[6].type = 'leao';
 
   assert.deepEqual(regras(validarFase(faseValida(), mapa, CONTEXTO)), ['predador']);
+});
+
+test('espécie de Predador do mapa sem nome num idioma é problema', () => {
+  const contexto = { ...CONTEXTO, dicionarios: { ...DICIONARIOS, en: { ...DICIONARIOS.en } } };
+  delete contexto.dicionarios.en['predador.rato'];
+
+  assert.deepEqual(regras(validarFase(faseValida(), mapaValido(), contexto)), ['predador-sem-texto']);
 });
 
 test('objeto fora do mapa é problema', () => {
