@@ -72,6 +72,14 @@ export const MUNDOS = Object.freeze([
 ]);
 
 /**
+ * Espécies de Predador: mamíferos invasores reais da NZ. No mapa, o objeto `predador`
+ * leva a espécie no tipo.
+ *
+ * @type {readonly string[]}
+ */
+export const PREDADORES = Object.freeze(['arminho', 'gamba', 'rato']);
+
+/**
  * Busca uma Fase pelo id, em qualquer Mundo.
  *
  * @param {string} id - Id da Fase.
@@ -82,4 +90,14 @@ export function buscarFase(id) {
   const fase = MUNDOS.flatMap((mundo) => mundo.fases).find((candidata) => candidata.id === id);
   if (!fase) throw new Error(`Fase desconhecida: ${id}`);
   return fase;
+}
+
+/**
+ * Caminho do sprite de um Item, gerado por script, a partir da raiz do site.
+ *
+ * @param {string} item - Id do Item.
+ * @returns {string} O caminho do PNG 18×18.
+ */
+export function imagemItem(item) {
+  return `assets/sprites/itens/${item}.png`;
 }
