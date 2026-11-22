@@ -61,7 +61,7 @@ export const MUNDOS = Object.freeze([
         emBreve: false,
         mapa: 'assets/mapas/pecuaria.tmj',
         itens: ['la', 'leite'],
-        chavesFato: [],
+        chavesFato: ['fato.pecuaria.1', 'fato.pecuaria.2', 'fato.pecuaria.3'],
         tempoReferencia: 60,
       },
       faseEmBreve('porto'),
