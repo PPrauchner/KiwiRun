@@ -1,6 +1,6 @@
 /**
  * @file Tela inicial: "Kia ora!", o convite a apertar um botão e a versão num canto;
- * confirmar (botão frontal, Start, Enter ou Espaço) abre a Pecuária.
+ * confirmar (botão frontal, Start, Enter ou Espaço) abre o Menu.
  */
 import { FONTE } from './preload.js';
 import { VERSAO } from '../logica/versao.js';
@@ -11,8 +11,6 @@ import { lerEntrada } from './entrada.js';
 const TAMANHO_FONTE = 12;
 const MARGEM = 6;
 const COR_DISCRETA = 0x8899aa;
-/** A Fase que confirmar abre, até o Menu chegar. */
-const FASE_INICIAL = 'pecuaria';
 
 export class TelaInicial extends Phaser.Scene {
   constructor() {
@@ -43,7 +41,7 @@ export class TelaInicial extends Phaser.Scene {
    */
   update(_tempo, delta) {
     if (this.entrada.atualizar(lerEntrada(this), delta / 1000).confirmar) {
-      this.scene.start('fase', { faseId: FASE_INICIAL });
+      this.scene.start('menu');
     }
   }
 }

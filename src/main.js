@@ -7,6 +7,7 @@ import { criarTextos } from './logica/textos.js';
 import { criarTeclado, TECLAS } from './logica/input.js';
 import { Preload } from './cenas/preload.js';
 import { TelaInicial } from './cenas/tela-inicial.js';
+import { Menu } from './cenas/menu.js';
 import { Fase } from './cenas/fase.js';
 import { FISICA } from './logica/pulo.js';
 
@@ -46,7 +47,7 @@ const jogo = new Phaser.Game({
       instancia.registry.set('teclado', teclado);
     },
   },
-  scene: [Preload, TelaInicial, Fase],
+  scene: [Preload, TelaInicial, Menu, Fase],
 });
 
 // Exposto para o smoke (Playwright) inspecionar a cena ativa.
