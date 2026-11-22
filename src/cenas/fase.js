@@ -9,16 +9,18 @@
  * Samambaias-prateadas em "X/3"; pegar uma põe o seu Fato na Fila de Fatos, mostrada no topo
  * da tela sem pausar o jogo. Os Predadores patrulham entre as pontas da sua área no mapa:
  * cair sobre um é Captura (armadilha, quique e o nome da espécie flutuando); qualquer outro
- * contato devolve o Kiwi ao Checkpoint, onde ele fica invulnerável, piscando, por ~1 s. O
- * teclado é provisório até o Input unificado.
+ * contato devolve o Kiwi ao Checkpoint, onde ele fica invulnerável, piscando, por ~1 s. Os
+ * controles vêm do Input unificado, que ignora a entrada nos primeiros ~0,5 s da Fase.
  */
 import { buscarFase, chaveNomePredador, imagemItem } from '../logica/catalogo.js';
 import { resolverContato, SEGUNDOS_INVULNERAVEL, SEGUNDOS_ROTULO_CAPTURA } from '../logica/captura.js';
 import { criarControlePulo } from '../logica/controle-pulo.js';
 import { criarCronometro, formatarTempo } from '../logica/cronometro.js';
 import { criarFilaDeFatos, LARGURA_FATO } from '../logica/fila-fatos.js';
+import { criarInput } from '../logica/input.js';
 import { FISICA, TILE } from '../logica/pulo.js';
 import { FONTE, TEXTURA_KIWI, TEXTURA_QUADROS_TILESET, TEXTURA_SAMAMBAIA, TEXTURA_TILESET, texturaPredador } from './preload.js';
+import { lerEntrada } from './entrada.js';
 
 /** Tamanho da hitbox do Kiwi, menor que o sprite de 18×18, e seu deslocamento nele. */
 const HITBOX = Object.freeze({ largura: 10, altura: 11, x: 4, y: 7 });
@@ -55,13 +57,6 @@ const SUBIDA_ROTULO = 10;
 /** Piscar do Kiwi invulnerável: trocas por segundo e opacidade na fase apagada. */
 const PISCADAS_POR_SEGUNDO = 10;
 const OPACIDADE_PISCANDO = 0.3;
-
-/** Teclas provisórias: setas/WASD para andar, Espaço, ↑ ou W para pular. */
-const TECLAS = Object.freeze({
-  esquerda: ['LEFT', 'A'],
-  direita: ['RIGHT', 'D'],
-  pular: ['SPACE', 'UP', 'W'],
-});
 
 /**
  * Diz se um tile é atravessável por baixo, lendo a propriedade `umaMao` do tileset
@@ -148,7 +143,9 @@ export class Fase extends Phaser.Scene {
     this.criarPredadores(objetos.filter((objeto) => objeto.name === 'predador'));
 
     this.configurarCamera(mapa);
-    this.configurarTeclado();
+    this.entrada = criarInput();
+    this.acoes = null;
+    this.apertouPular = false;
     this.controlePulo = criarControlePulo();
     this.physics.world.on('worldstep', (dt) => this.passoDoKiwi(dt));
 
@@ -163,6 +160,9 @@ export class Fase extends Phaser.Scene {
    * @param {number} delta - Milissegundos desde o quadro anterior.
    */
   update(_tempo, delta) {
+    this.acoes = this.entrada.atualizar(lerEntrada(this), delta / 1000);
+    // O passo de física pode não rodar neste quadro: o aperto espera por ele.
+    if (this.acoes.pular) this.apertouPular = true;
     if (!this.cronometro.iniciado && this.houveMoverOuPular()) {
       this.cronometro.registrarInput();
       this.physics.resume();
@@ -175,8 +175,7 @@ export class Fase extends Phaser.Scene {
 
   /** @returns {boolean} Se o jogador está movendo ou acabou de pular. */
   houveMoverOuPular() {
-    const { esquerda, direita, pular } = this.teclas;
-    return this.apertouPular || [...esquerda, ...direita, ...pular].some((tecla) => tecla.isDown);
+    return this.apertouPular || this.acoes.horizontal !== 0;
   }
 
   /** @param {Phaser.Types.Tilemaps.TiledObject[]} itens - Os pontos `item` do mapa. */
@@ -356,29 +355,16 @@ export class Fase extends Phaser.Scene {
     camera.setFollowOffset(-OLHAR_A_FRENTE, 0);
   }
 
-  configurarTeclado() {
-    const teclado = this.input.keyboard;
-    const criar = (nomes) => nomes.map((nome) => teclado.addKey(nome));
-    this.teclas = {
-      esquerda: criar(TECLAS.esquerda),
-      direita: criar(TECLAS.direita),
-      pular: criar(TECLAS.pular),
-    };
-    this.apertouPular = false;
-    for (const tecla of this.teclas.pular) tecla.on('down', () => { this.apertouPular = true; });
-  }
-
   /**
    * Um passo fixo de física: andar, pular e a Zona de queda.
    *
    * @param {number} dt - Segundos do passo.
    */
   passoDoKiwi(dt) {
-    if (this.venceu) return;
+    if (this.venceu || !this.acoes) return;
     this.patrulhar();
     this.piscarInvulneravel(dt);
-    const segurado = (teclas) => teclas.some((tecla) => tecla.isDown);
-    const direcao = Number(segurado(this.teclas.direita)) - Number(segurado(this.teclas.esquerda));
+    const direcao = this.acoes.horizontal;
     const { body } = this.kiwi;
 
     body.setVelocityX(direcao * FISICA.velocidadeAndar);
@@ -386,7 +372,7 @@ export class Fase extends Phaser.Scene {
       dt,
       noChao: body.blocked.down,
       apertou: this.apertouPular,
-      segurando: segurado(this.teclas.pular),
+      segurando: this.acoes.segurandoPulo,
       vy: body.velocity.y,
     }));
     this.apertouPular = false;
