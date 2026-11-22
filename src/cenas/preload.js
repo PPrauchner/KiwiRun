@@ -4,6 +4,7 @@
 export const FONTE = 'kiwirun';
 export const TEXTURA_TILESET = 'tileset';
 export const TEXTURA_KIWI = 'kiwi';
+export const TEXTURA_SAMAMBAIA = 'samambaia';
 /** O mesmo PNG do tileset, fatiado em quadros 18×18 para sprites como a bandeira do Checkpoint. */
 export const TEXTURA_QUADROS_TILESET = 'tileset-quadros';
 
@@ -22,6 +23,7 @@ export class Preload extends Phaser.Scene {
     this.load.image(TEXTURA_TILESET, 'assets/tiles/tileset.png');
     this.load.spritesheet(TEXTURA_QUADROS_TILESET, 'assets/tiles/tileset.png', { frameWidth: QUADRO, frameHeight: QUADRO });
     this.load.spritesheet(TEXTURA_KIWI, 'assets/sprites/kiwi.png', { frameWidth: QUADRO, frameHeight: QUADRO });
+    this.load.image(TEXTURA_SAMAMBAIA, 'assets/sprites/samambaia.png');
   }
 
   create() {
