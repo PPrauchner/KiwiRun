@@ -3,8 +3,9 @@
  * espera a Tela inicial, aperta uma tecla, espera a Pecuária carregada e confere o HUD,
  * a Fase parada até o primeiro input, a coleta de um Item, as Samambaias-prateadas e a
  * Fila de Fatos, a volta ao Checkpoint, e os Predadores: Captura, contato lateral e a
- * invulnerabilidade depois de voltar. Falha também se houver erro no console ou requisição
- * fora da origem.
+ * invulnerabilidade depois de voltar, e o bloqueio de entrada: o pulo segurado ao tocar o fim
+ * não abre a Fase de novo na Tela inicial. Falha também se houver erro no console ou
+ * requisição fora da origem.
  *
  * Uso: `npm run smoke`. Sai com código 1 e a lista de problemas quando algo falha.
  */
@@ -17,6 +18,7 @@ import { formatarTempo } from '../src/logica/cronometro.js';
 import { DURACAO_FATO } from '../src/logica/fila-fatos.js';
 import { chaveNomePredador } from '../src/logica/catalogo.js';
 import { SEGUNDOS_INVULNERAVEL } from '../src/logica/captura.js';
+import { SEGUNDOS_BLOQUEIO } from '../src/logica/input.js';
 
 const LIMITE_MS = 15_000;
 const CENA_TELA_INICIAL = 'tela-inicial';
@@ -24,6 +26,8 @@ const CENA_FASE = 'fase';
 const MAPA_PECUARIA = new URL('../assets/mapas/pecuaria.tmj', import.meta.url);
 /** Quanto esperar para ver se algo se mexe (ou não), em ms. */
 const ESPERA_MS = 400;
+/** Quanto esperar o bloqueio de entrada de uma tela nova vencer, em ms. */
+const ESPERA_BLOQUEIO_MS = SEGUNDOS_BLOQUEIO * 1000 + 200;
 
 /**
  * Os objetos da camada `objetos` do mapa da Pecuária com esse nome.
@@ -88,6 +92,7 @@ async function verificarItensECheckpoints(pagina) {
   if (parado.y !== antes.y || parado.segundos !== 0) problemas.push('a Fase se mexeu antes do primeiro input');
   if (JSON.stringify(parado.predadores) !== JSON.stringify(antes.predadores)) problemas.push('um Predador se mexeu antes do primeiro input');
 
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
   await pagina.keyboard.down('ArrowRight');
   await pagina.waitForTimeout(ESPERA_MS);
   await pagina.keyboard.up('ArrowRight');
@@ -183,6 +188,35 @@ async function verificarPredadores(pagina, levarKiwi, checkpoint) {
 }
 
 /**
+ * Segura o pulo, leva o Kiwi ao fim da Fase e confere que, na Tela inicial, o pulo que
+ * continua segurado não abre a Fase de novo; soltar e apertar abre.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, com a Fase andando.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarPuloSeguradoNoFim(pagina) {
+  const problemas = [];
+  const [fim] = await objetosDaPecuaria('fim');
+  await pagina.keyboard.down('Space');
+  await pagina.evaluate(([cena, x, y]) => {
+    window.kiwirun.jogo.scene.getScene(cena).kiwi.body.reset(x, y);
+  }, [CENA_FASE, fim.x + fim.width / 2, fim.y + fim.height / 2]);
+  await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.isActive(cena), CENA_TELA_INICIAL, { timeout: 2000 })
+    .catch(() => problemas.push('tocar o fim não voltou à Tela inicial'));
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS + ESPERA_MS);
+  if (!(await pagina.evaluate((cena) => window.kiwirun.jogo.scene.isActive(cena), CENA_TELA_INICIAL))) {
+    problemas.push('o pulo segurado do fim da Fase abriu a Fase de novo na Tela inicial');
+  }
+  await pagina.keyboard.up('Space');
+  // O Input lê por quadro: ele precisa ver o pulo solto antes do aperto novo.
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  await pagina.keyboard.press('Space');
+  await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.isActive(cena), CENA_FASE, { timeout: 2000 })
+    .catch(() => problemas.push('soltar e apertar Espaço na Tela inicial não abriu a Fase'));
+  return problemas;
+}
+
+/**
  * Abre o jogo e devolve o que deu errado.
  *
  * @param {string} url - Endereço do jogo servido localmente.
@@ -240,6 +274,7 @@ async function verificarJogo(url) {
   }
 
   try {
+    await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
     await pagina.keyboard.press('Enter');
     await pagina.waitForFunction(
       (cena) => window.kiwirun.jogo.scene.getScene(cena)?.kiwi?.active === true,
@@ -252,6 +287,7 @@ async function verificarJogo(url) {
     }, CENA_FASE);
     if (fase.id !== 'pecuaria' || !fase.temKiwi) problemas.push(`Fase aberta: ${JSON.stringify(fase)}`);
     problemas.push(...await verificarItensECheckpoints(pagina));
+    problemas.push(...await verificarPuloSeguradoNoFim(pagina));
   } catch (erro) {
     problemas.push(`Pecuária não carregou depois de apertar uma tecla: ${erro.message}`);
   } finally {
@@ -268,4 +304,4 @@ if (problemas.length > 0) {
   console.error(`Smoke falhou:\n- ${problemas.join('\n- ')}`);
   process.exit(1);
 }
-console.log('Smoke ok: Tela inicial e Pecuária abertas, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint e Predadores funcionando, sem erro no console nem requisição fora da origem.');
+console.log('Smoke ok: Tela inicial e Pecuária abertas, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores e bloqueio de entrada funcionando, sem erro no console nem requisição fora da origem.');
