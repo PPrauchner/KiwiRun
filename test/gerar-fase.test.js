@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { gerarMapa } from '../scripts/gerar-fase.js';
 import { PULO, TILE } from '../src/logica/pulo.js';
-import { buscarFase } from '../src/logica/catalogo.js';
+import { PREDADORES, buscarFase } from '../src/logica/catalogo.js';
 
 const SCRIPT = fileURLToPath(new URL('../scripts/gerar-fase.js', import.meta.url));
 
@@ -254,4 +254,11 @@ test('patrulha de Predador sobre um vão ou um degrau é recusada', () => {
   assert.throws(() => gerarMapa(descricao({ predadores: [{ especie: 'rato', de: 8, ate: 13 }] })), /predador/i);
   const comDegrau = descricao({ trechos: [{ chao: 5, altura: 3 }, { chao: 5, altura: 4 }] });
   assert.throws(() => gerarMapa({ ...comDegrau, predadores: [{ especie: 'rato', de: 2, ate: 7 }] }), /predador/i);
+});
+
+test('a Pecuária versionada tem Predadores das três espécies do catálogo', async () => {
+  const mapa = JSON.parse(await readFile(new URL('../assets/mapas/pecuaria.tmj', import.meta.url), 'utf8'));
+  const especies = objetosChamados(mapa, 'predador').map((objeto) => objeto.type);
+
+  assert.deepEqual([...new Set(especies)].sort(), [...PREDADORES].sort());
 });
