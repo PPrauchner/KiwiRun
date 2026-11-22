@@ -1,7 +1,7 @@
 /**
  * @file Descrição da Fase Pecuária para o gerador: trechos de chão e vãos, da esquerda
- * para a direita, plataformas de mão única, Itens (lã no pasto, leite na ordenha) e
- * Checkpoints. Alturas em tiles, contadas da base do mapa.
+ * para a direita, plataformas de mão única, Itens (lã no pasto, leite na ordenha),
+ * Checkpoints e as três Samambaias-prateadas. Alturas em tiles, contadas da base do mapa.
  */
 export default {
   altura: 20,
@@ -44,5 +44,12 @@ export default {
     { coluna: 74, item: 'leite', alturaSobreChao: 4 },
     { coluna: 80, item: 'la', alturaSobreChao: 1 },
     { coluna: 83, item: 'la', alturaSobreChao: 1 },
+  ],
+  // Em escada: no caminho, depois do primeiro vão; sobre a plataforma do pasto, fora do
+  // caminho mas à vista; e escondida num arbusto atrás do início, para quem volta.
+  samambaias: [
+    { coluna: 17, chave: 'fato.pecuaria.1', alturaSobreChao: 1 },
+    { coluna: 36, chave: 'fato.pecuaria.2', alturaSobreChao: 4 },
+    { coluna: 0, chave: 'fato.pecuaria.3', alturaSobreChao: 1, escondida: true },
   ],
 };

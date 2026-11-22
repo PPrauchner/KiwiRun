@@ -227,15 +227,8 @@ function lerMapaDoRepo(caminho) {
   }
 }
 
-/**
- * Tolerância temporária: a Pecuária ainda não tem Samambaias-prateadas. A fatia de
- * Samambaias-prateadas remove esta exceção.
- */
-const TOLERADOS = [{ fase: 'pecuaria', regra: 'samambaias' }];
-
 test('o mapa de cada Fase do catálogo passa no Validador de Fase', () => {
-  const problemas = validarCatalogo(MUNDOS, lerMapaDoRepo, { dicionarios: TEXTOS, predadores: PREDADORES })
-    .filter((problema) => !TOLERADOS.some(({ fase, regra }) => problema.fase === fase && problema.regra === regra));
+  const problemas = validarCatalogo(MUNDOS, lerMapaDoRepo, { dicionarios: TEXTOS, predadores: PREDADORES });
 
   const relatorio = problemas.map(({ fase, mensagem }) => `- ${fase}: ${mensagem}`).join('\n');
   assert.equal(problemas.length, 0, `Fases com problemas:\n${relatorio}`);

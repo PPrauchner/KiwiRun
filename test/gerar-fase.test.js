@@ -231,3 +231,11 @@ test('Samambaia-prateada sobre um vão ou fora do alcance do pulo é recusada', 
   assert.throws(() => gerarMapa(descricao({ samambaias: [{ coluna: 4, chave: 'fato.teste.1', alturaSobreChao: altoDemais }] })), /samambaia/i);
 });
 
+test('a Pecuária versionada tem uma Samambaia-prateada escondida atrás da camada frente', async () => {
+  const mapa = JSON.parse(await readFile(new URL('../assets/mapas/pecuaria.tmj', import.meta.url), 'utf8'));
+  const frente = mapa.layers.find((camada) => camada.name === 'frente');
+  const atrasDaFrente = objetosChamados(mapa, 'samambaia')
+    .filter(({ x, y }) => frente.data[Math.floor(y / TILE) * mapa.width + Math.floor(x / TILE)] > 0);
+
+  assert.equal(atrasDaFrente.length, 1);
+});
