@@ -5,7 +5,7 @@
  *
  * Na camada `objetos` ficam pontos: `inicio`, cada `checkpoint` (no chão) e cada `item`
  * (o id do Item no tipo do objeto) e cada `samambaia` (a chave do Fato no tipo), além da
- * área `fim`. A Samambaia-prateada escondida ganha um arbusto na camada `frente` por cima.
+ * área `fim`. A Samambaia-prateada escondida ganha uma folhagem na camada `frente` por cima.
  *
  * Recusa vãos, degraus, plataformas e Itens além das constantes do pulo, e recusa sobrescrever
  * um `.tmj` existente sem `--force` (o arquivo pode ter sido enfeitado no Tiled).
@@ -50,7 +50,7 @@ const ALTURA_FIM = 3;
  * @property {number} coluna - Coluna da Samambaia-prateada; precisa ter chão.
  * @property {string} chave - Chave do Fato que ela revela.
  * @property {number} alturaSobreChao - Tile contado do chão: 1 é o tile logo acima.
- * @property {boolean} [escondida] - Se fica atrás de um arbusto da camada `frente`.
+ * @property {boolean} [escondida] - Se fica atrás de uma folhagem da camada `frente`.
  */
 
 /**
@@ -222,7 +222,7 @@ export function gerarMapa(descricao) {
       throw new Error(`samambaia ${chave} ${alturaSobreChao} tiles acima do chão na coluna ${coluna}: o Kiwi alcança ${alturaMaximaItem}`);
     }
     const linha = topo(coluna) - alturaSobreChao;
-    if (escondida) frente.pintar(coluna, linha, TILES.arbusto);
+    if (escondida) frente.pintar(coluna, linha, TILES.folhagem);
     objetos.push(ponto('samambaia', chave, coluna, (linha + 0.5) * TILE));
   }
   objetos.forEach((objeto, indice) => { objeto.id = indice + 1; });
