@@ -23,7 +23,9 @@
  * encurtados: aviso e Volta no Menu (em EN, volta em PT), na Fase, na Pausa e no Placar, "---"
  * nas Iniciais e nenhum aviso na Tela inicial; os efeitos sonoros de pular, coletar, capturar e
  * achar uma Samambaia-prateada; e o Silêncio: M e Select com o ícone, persistindo ao recarregar
- * e na Volta, sem descongelar a Fase nem a Pausa, e M digitando nas Iniciais; e o aviso de toque:
+ * e na Volta, sem descongelar a Fase nem a Pausa, e M digitando nas Iniciais; a música: sem
+ * reiniciar entre Tela inicial, Menu, Créditos e Placar, trocando de andamento na Pecuária e
+ * cortada pelo Silêncio; e o aviso de toque:
  * ausente no desktop, presente com toque emulado (com o link do Pages, sem Wake Lock no
  * navegador, e qualquer tecla abrindo o Menu), com a Wake Lock pedida ao abrir. Falha também se houver erro no console ou
  * requisição fora da origem.
@@ -36,13 +38,14 @@ import { iniciarServidor } from './servidor.js';
 import { criarTextos } from '../src/logica/textos.js';
 import { VERSAO } from '../src/logica/versao.js';
 import { DURACAO_FATO } from '../src/logica/fila-fatos.js';
-import { chaveNomeItem, chaveNomePredador, MUNDOS } from '../src/logica/catalogo.js';
+import { buscarFase, chaveNomeItem, chaveNomePredador, MUNDOS } from '../src/logica/catalogo.js';
 import { SEGUNDOS_INVULNERAVEL } from '../src/logica/captura.js';
 import { SEGUNDOS_PRESO } from '../src/logica/ovelha.js';
 import { SEGUNDOS_BLOQUEIO } from '../src/logica/input.js';
 import { arredondarDecimos, SEGUNDOS_ZERAR, textoRecorde } from '../src/logica/recorde.js';
 import { chaveOpcaoPausa, LINHAS_CONTROLES } from '../src/logica/menu-pausa.js';
 import { chaveEfeito } from '../src/logica/efeitos.js';
+import { ANDAMENTO_BASE, andamentoDaFase, chaveMusica } from '../src/logica/musica.js';
 import { CHAVES_TELA_CREDITOS, fontesPorFase, SECOES_CREDITOS } from '../src/logica/creditos.js';
 
 const LIMITE_MS = 15_000;
@@ -1073,6 +1076,79 @@ function textosDaTelaInicial(pagina) {
 }
 
 /**
+ * Passa a registrar em `window.musicasIniciadas` a chave de cada faixa de música que (re)começa.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, com a música já tocando.
+ */
+function espiarMusica(pagina) {
+  return pagina.evaluate(() => {
+    const { sound } = window.kiwirun.jogo;
+    const faixa = sound.getAll().find((som) => som.key.startsWith('musica-'));
+    const prototipo = Object.getPrototypeOf(faixa);
+    const tocar = prototipo.play;
+    window.musicasIniciadas = [];
+    prototipo.play = function play(...argumentos) {
+      if (this.key.startsWith('musica-')) window.musicasIniciadas.push(this.key);
+      return tocar.apply(this, argumentos);
+    };
+  });
+}
+
+/**
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ * @returns {Promise<{ tocando: string[], iniciadas: string[] }>} As faixas de música tocando e
+ *   as que (re)começaram desde `espiarMusica`.
+ */
+function estadoDaMusica(pagina) {
+  return pagina.evaluate(() => ({
+    tocando: window.kiwirun.jogo.sound.getAll().filter((som) => som.key.startsWith('musica-') && som.isPlaying).map((som) => som.key),
+    iniciadas: [...window.musicasIniciadas],
+  }));
+}
+
+/**
+ * A música: tocando no andamento base na Tela inicial, segue sem reiniciar no Menu, nos
+ * Créditos e no Placar; a Pecuária troca para o andamento dela, e o Placar seguinte volta ao
+ * base; o Silêncio a corta. Termina no Placar, com som.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, com som.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarMusica(pagina) {
+  const problemas = [];
+  const base = chaveMusica(ANDAMENTO_BASE);
+  const daFase = chaveMusica(andamentoDaFase(buscarFase(FASE_PECUARIA)));
+  const tentativa = { faseId: FASE_PECUARIA, tempoGasto: 42, itens: [], capturas: [], fatosEncontrados: [], novoRecorde: false };
+
+  await abrirCena(pagina, CENA_TELA_INICIAL);
+  await espiarMusica(pagina);
+  for (const [cena, dados] of [[CENA_MENU], [CENA_CREDITOS], [CENA_PLACAR, tentativa]]) {
+    await abrirCena(pagina, cena, dados);
+    const musica = await estadoDaMusica(pagina);
+    if (musica.iniciadas.length > 0) problemas.push(`ir à cena ${cena} reiniciou a música: ${musica.iniciadas}`);
+    if (musica.tocando.join() !== base) problemas.push(`na cena ${cena}, a música tocando era "${musica.tocando}", não "${base}"`);
+  }
+
+  await abrirCena(pagina, CENA_FASE, { faseId: FASE_PECUARIA });
+  const naFase = await estadoDaMusica(pagina);
+  if (naFase.iniciadas.join() !== daFase || naFase.tocando.join() !== daFase) {
+    problemas.push(`a Pecuária não trocou para "${daFase}": ${JSON.stringify(naFase)}`);
+  }
+  await abrirCena(pagina, CENA_PLACAR, tentativa);
+  const noPlacar = await estadoDaMusica(pagina);
+  if (noPlacar.iniciadas.join() !== [daFase, base].join() || noPlacar.tocando.join() !== base) {
+    problemas.push(`o Placar depois da Fase não voltou a "${base}": ${JSON.stringify(noPlacar)}`);
+  }
+
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('KeyM');
+  if (!(await esperarSilencio(pagina, CENA_PLACAR, true))) problemas.push('M no Placar não cortou a música');
+  await pagina.keyboard.press('KeyM');
+  if (!(await esperarSilencio(pagina, CENA_PLACAR, false))) problemas.push('M no Placar não devolveu a música');
+  return problemas;
+}
+
+/**
  * Abre o jogo num aparelho de toque emulado, sem Wake Lock no navegador: a Tela inicial mostra
  * "Jogue no computador" com o link do Pages, nada quebra, e uma tecla abre o Menu mesmo assim.
  *
@@ -1209,6 +1285,7 @@ async function verificarJogo(url) {
     problemas.push(...await verificarReiniciar(pagina));
     problemas.push(...await verificarVolta(pagina));
     problemas.push(...await verificarSilencio(pagina));
+    problemas.push(...await verificarMusica(pagina));
     problemas.push(...await verificarToque(navegador, url));
   } catch (erro) {
     problemas.push(`Pecuária não carregou pelo Menu: ${erro.message}`);
@@ -1226,4 +1303,4 @@ if (problemas.length > 0) {
   console.error(`Smoke falhou:\n- ${problemas.join('\n- ')}`);
   process.exit(1);
 }
-console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu, Créditos e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Placas, Ovelhas, Iniciais, Placar, Recorde (recarregar e zerar), Pausa, bloqueio de entrada, Volta por inatividade, efeitos sonoros, Silêncio, aviso de toque e Wake Lock funcionando, sem erro no console nem requisição fora da origem.');
+console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu, Créditos e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Placas, Ovelhas, Iniciais, Placar, Recorde (recarregar e zerar), Pausa, bloqueio de entrada, Volta por inatividade, efeitos sonoros, Silêncio, música, aviso de toque e Wake Lock funcionando, sem erro no console nem requisição fora da origem.');
