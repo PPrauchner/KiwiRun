@@ -14,6 +14,7 @@
  * controles vêm do Input unificado, que ignora a entrada nos primeiros ~0,5 s da Fase. As
  * Ovelhas andam de uma ponta à outra do trajeto como plataformas sólidas só por cima: levam
  * o Kiwi montado, não o ferem e, se ele ficar prensado em cima de uma, o devolvem ao Checkpoint.
+ * As esteiras empurram o Kiwi apoiado nelas no sentido marcado e só rolam com a Fase andando.
  * Cada Placa mostra, fixa sobre o seu poste, os ícones dos botões e uma frase no idioma atual.
  * Pular, coletar um Item, capturar e pegar uma Samambaia-prateada tocam cada um o seu efeito
  * sonoro; M ou Select alternam o Silêncio sem dar a partida na Fase congelada.
@@ -33,7 +34,8 @@ import { calcularPlacarDaTentativa } from '../logica/placar.js';
 import { FISICA, TILE } from '../logica/pulo.js';
 import { criarVigiaPreso } from '../logica/ovelha.js';
 import { acaoDaPlaca, BOTOES, BOTOES_DA_ACAO } from '../logica/placa.js';
-import { FONTE, TEXTURA_BOTOES, TEXTURA_KIWI, TEXTURA_OVELHA, TEXTURA_QUADROS_TILESET, TEXTURA_SAMAMBAIA, texturaPredador } from './preload.js';
+import { sentidoDaEsteira } from '../logica/esteira.js';
+import { FONTE, TEXTURA_BOTOES, TEXTURA_ESTEIRA, TEXTURA_KIWI, TEXTURA_OVELHA, TEXTURA_QUADROS_TILESET, TEXTURA_SAMAMBAIA, texturaPredador } from './preload.js';
 import { lerEntrada } from './entrada.js';
 import { criarVigiaInatividade } from './inatividade.js';
 import { criarControleSilencio } from './silencio.js';
@@ -73,6 +75,8 @@ const VELOCIDADE_PREDADOR = 30;
 /** Ovelha: hitbox no sprite de 18×18 (o topo é o velo onde o Kiwi pisa) e velocidade do trajeto. */
 const HITBOX_OVELHA = Object.freeze({ largura: 14, altura: 13, x: 1, y: 5 });
 const VELOCIDADE_OVELHA = 24;
+/** Esteira: quanto ela soma à velocidade do Kiwi apoiado nela, em pixels por segundo. */
+const VELOCIDADE_ESTEIRA = 40;
 /** Armadilha da Captura: a caixa que desce sobre o Predador, e quanto o rótulo sobe. */
 const COR_ARMADILHA = 0x8f563b;
 const COR_BORDA_ARMADILHA = 0x45283c;
@@ -184,6 +188,7 @@ export class Fase extends Phaser.Scene {
     for (const checkpoint of objetos.filter((objeto) => objeto.name === 'checkpoint')) this.criarCheckpoint(checkpoint);
     this.criarPredadores(objetos.filter((objeto) => objeto.name === 'predador'));
     this.criarOvelhas(objetos.filter((objeto) => objeto.name === 'ovelha'));
+    this.criarEsteiras(objetos.filter((objeto) => objeto.name === 'esteira'));
 
     this.configurarCamera(mapa);
     this.entrada = criarInput();
@@ -360,6 +365,36 @@ export class Fase extends Phaser.Scene {
     });
   }
 
+  /**
+   * Põe a lona de cada esteira sobre o tile de cima do chão, espelhada quando anda para a
+   * esquerda, e a faixa logo acima dela onde o Kiwi apoiado é empurrado no sentido marcado.
+   *
+   * @param {Phaser.Types.Tilemaps.TiledObject[]} areas - As áreas `esteira` do mapa.
+   */
+  criarEsteiras(areas) {
+    this.lonasEsteira = [];
+    this.sentidoEsteira = 0;
+    for (const area of areas) {
+      const { x, y, width: largura } = area;
+      const sentido = sentidoDaEsteira(area);
+      this.lonasEsteira.push(this.add.tileSprite(x, y, largura, TILE, TEXTURA_ESTEIRA).setOrigin(0).setFlipX(sentido < 0));
+      const faixa = this.add.zone(x, y - TILE, largura, TILE).setOrigin(0);
+      this.physics.add.existing(faixa, true);
+      this.physics.add.overlap(this.kiwi, faixa, () => {
+        if (this.kiwi.body.blocked.down) this.sentidoEsteira = sentido;
+      });
+    }
+  }
+
+  /**
+   * Rola as lonas das esteiras; a cena espelha a que anda para a esquerda.
+   *
+   * @param {number} dt - Segundos do passo.
+   */
+  rolarEsteiras(dt) {
+    for (const lona of this.lonasEsteira) lona.tilePositionX -= VELOCIDADE_ESTEIRA * dt;
+  }
+
   /** @param {Phaser.Types.Physics.Arcade.SpriteWithDynamicBody} predador - O Predador que o Kiwi tocou. */
   tocarPredador(predador) {
     if (this.venceu || !predador.active) return;
@@ -511,13 +546,15 @@ export class Fase extends Phaser.Scene {
   passoDoKiwi(dt) {
     if (this.venceu || !this.acoes) return;
     this.patrulhar();
+    this.rolarEsteiras(dt);
     this.piscarInvulneravel(dt);
     const direcao = this.acoes.horizontal;
     const { body } = this.kiwi;
-    const { sobreOvelha } = this;
+    const { sobreOvelha, sentidoEsteira } = this;
     this.sobreOvelha = false;
+    this.sentidoEsteira = 0;
 
-    body.setVelocityX(direcao * FISICA.velocidadeAndar);
+    body.setVelocityX(direcao * FISICA.velocidadeAndar + sentidoEsteira * VELOCIDADE_ESTEIRA);
     body.setVelocityY(this.controlePulo.atualizar({
       dt,
       noChao: body.blocked.down || sobreOvelha,
