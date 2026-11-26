@@ -8,7 +8,8 @@
  * primeiro mover ou pular, a Fase
  * e o cronômetro ficam parados. O HUD mostra o Tempo gasto, os Itens em "X/Y" e as
  * Samambaias-prateadas em "X/3"; pegar uma põe o seu Fato na Fila de Fatos, mostrada no topo
- * da tela sem pausar o jogo. Os Predadores patrulham entre as pontas da sua área no mapa:
+ * da tela sem pausar o jogo. Os Predadores patrulham entre as pontas da sua área no mapa, cada
+ * espécie no seu ritmo, e o arminho dá um pulinho quando o Kiwi chega perto; em todas,
  * cair sobre um é Captura (armadilha, quique e o nome da espécie flutuando); qualquer outro
  * contato devolve o Kiwi ao Checkpoint, onde ele fica invulnerável, piscando, por ~1 s. Os
  * controles vêm do Input unificado, que ignora a entrada nos primeiros ~0,5 s da Fase. As
@@ -26,8 +27,9 @@
  * abrem a Pausa por cima e pausam esta cena: o jogo, o cronômetro e a Fila de Fatos param
  * com ela. Antes do primeiro input, continuar devolve a Fase ainda congelada.
  */
-import { buscarFase, chaveNomePredador, imagemItem } from '../logica/catalogo.js';
+import { buscarFase, chaveNomePredador, COMPORTAMENTO_PREDADOR, imagemItem } from '../logica/catalogo.js';
 import { resolverContato, SEGUNDOS_INVULNERAVEL, SEGUNDOS_ROTULO_CAPTURA } from '../logica/captura.js';
+import { criarPulinho } from '../logica/pulinho.js';
 import { criarControlePulo } from '../logica/controle-pulo.js';
 import { criarCronometro } from '../logica/cronometro.js';
 import { chaveEfeito } from '../logica/efeitos.js';
@@ -73,9 +75,8 @@ const OPACIDADE_FUNDO_FATO = 0.8;
 /** Aviso da Placa, sobre o poste: folga entre ícones, texto e borda da faixa escura. */
 const FOLGA_PLACA = 3;
 
-/** Predador: hitbox no sprite de 18×18 e velocidade da patrulha, em pixels por segundo. */
+/** Predador: hitbox no sprite de 18×18; a velocidade da patrulha é da espécie, no Catálogo. */
 const HITBOX_PREDADOR = Object.freeze({ largura: 14, altura: 10, x: 2, y: 8 });
-const VELOCIDADE_PREDADOR = 30;
 /** Ovelha: hitbox no sprite de 18×18 (o topo é o velo onde o Kiwi pisa) e velocidade do trajeto. */
 const HITBOX_OVELHA = Object.freeze({ largura: 14, altura: 13, x: 1, y: 5 });
 const VELOCIDADE_OVELHA = 24;
@@ -314,8 +315,8 @@ export class Fase extends Phaser.Scene {
   }
 
   /**
-   * Põe cada Predador na ponta esquerda da sua área, já andando para a direita; a física
-   * pausada o segura até o primeiro mover ou pular.
+   * Põe cada Predador na ponta esquerda da sua área, já andando para a direita na velocidade da
+   * espécie; a física pausada o segura até o primeiro mover ou pular.
    *
    * @param {Phaser.Types.Tilemaps.TiledObject[]} areas - As áreas `predador` do mapa.
    */
@@ -325,25 +326,36 @@ export class Fase extends Phaser.Scene {
     for (const { x, y, width: largura, height: altura, type: especie } of areas) {
       const predador = this.predadores.create(x + TILE / 2, y + altura - TILE / 2, texturaPredador(especie));
       predador.body.setSize(HITBOX_PREDADOR.largura, HITBOX_PREDADOR.altura).setOffset(HITBOX_PREDADOR.x, HITBOX_PREDADOR.y);
-      predador.setData({ especie, minX: x + TILE / 2, maxX: x + largura - TILE / 2 });
-      predador.setVelocityX(VELOCIDADE_PREDADOR);
+      const { velocidade, pulinho } = COMPORTAMENTO_PREDADOR[especie];
+      predador.setData({ especie, velocidade, minX: x + TILE / 2, maxX: x + largura - TILE / 2 });
+      if (pulinho) predador.setData({ pulinho: criarPulinho(pulinho), baseY: predador.y });
+      predador.setVelocityX(velocidade);
     }
     this.physics.add.overlap(this.kiwi, this.predadores, (_kiwi, predador) => this.tocarPredador(predador));
   }
 
   /** Vira cada Predador e cada Ovelha ao chegar a uma ponta do trajeto. */
   patrulhar() {
-    const andantes = [
-      [this.predadores, VELOCIDADE_PREDADOR],
-      [this.ovelhas, VELOCIDADE_OVELHA],
-    ];
-    for (const [grupo, velocidade] of andantes) {
+    for (const grupo of [this.predadores, this.ovelhas]) {
       for (const andante of grupo.getChildren()) {
-        const { minX, maxX } = andante.data.values;
+        const { minX, maxX, velocidade } = andante.data.values;
         if (andante.x <= minX) andante.setVelocityX(velocidade);
         else if (andante.x >= maxX) andante.setVelocityX(-velocidade);
         andante.setFlipX(andante.body.velocity.x < 0);
       }
+    }
+  }
+
+  /**
+   * Ergue cada Predador de pulinho (o arminho) na altura do pulinho, pela distância até o Kiwi.
+   *
+   * @param {number} dt - Segundos do passo.
+   */
+  pularPredadores(dt) {
+    for (const predador of this.predadores.getChildren()) {
+      const { pulinho, baseY } = predador.data.values;
+      if (!pulinho || !predador.body.enable) continue;
+      predador.y = baseY - pulinho.avancar(this.kiwi.x - predador.x, dt);
     }
   }
 
@@ -364,7 +376,7 @@ export class Fase extends Phaser.Scene {
       ovelha.body.checkCollision.down = false;
       ovelha.body.checkCollision.left = false;
       ovelha.body.checkCollision.right = false;
-      ovelha.setData({ minX: x + TILE / 2, maxX: x + largura - TILE / 2 });
+      ovelha.setData({ velocidade: VELOCIDADE_OVELHA, minX: x + TILE / 2, maxX: x + largura - TILE / 2 });
       ovelha.setVelocityX(VELOCIDADE_OVELHA);
     }
     this.sobreOvelha = false;
@@ -606,6 +618,7 @@ export class Fase extends Phaser.Scene {
   passoDoKiwi(dt) {
     if (this.venceu || !this.acoes) return;
     this.patrulhar();
+    this.pularPredadores(dt);
     this.rolarEsteiras(dt);
     const vigaTravada = this.moverGuindastes();
     this.piscarInvulneravel(dt);
