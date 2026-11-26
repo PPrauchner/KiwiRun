@@ -26,6 +26,20 @@ export const TECLAS = Object.freeze({
   KeyM: ['silenciar'],
 });
 
+/**
+ * Teclas sem ação no Input que o registro do jogo também guarda: as letras (digitar as
+ * Iniciais) e Shift e Backspace (zerar os Recordes na Tela inicial).
+ */
+const TECLAS_EXTRAS = /^(Key[A-Z]|Backspace|ShiftLeft|ShiftRight)$/;
+
+/**
+ * @param {string} codigo - Um `KeyboardEvent.code`.
+ * @returns {boolean} Se o jogo usa a tecla: o registro a guarda e a página não a trata.
+ */
+export function registraTecla(codigo) {
+  return Object.hasOwn(TECLAS, codigo) || TECLAS_EXTRAS.test(codigo);
+}
+
 /** Ações de um botão frontal, em qualquer mapeamento. */
 const FRONTAL = Object.freeze(['pular', 'confirmar']);
 

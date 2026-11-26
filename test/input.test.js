@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { criarInput, criarTeclado, SEGUNDOS_BLOQUEIO } from '../src/logica/input.js';
+import { criarInput, criarTeclado, registraTecla, SEGUNDOS_BLOQUEIO } from '../src/logica/input.js';
 
 const QUADRO = 1 / 60;
 
@@ -246,4 +246,13 @@ test('teclado: perder o foco solta tudo', () => {
   teclado.soltarTudo();
 
   assert.deepEqual([...teclado.ler()], []);
+});
+
+test('o registro guarda as teclas das ações, as letras (Iniciais) e Shift e Backspace (zerar Recordes)', () => {
+  for (const codigo of ['ArrowLeft', 'Space', 'Escape', 'KeyA', 'KeyM', 'KeyQ', 'KeyZ', 'Backspace', 'ShiftLeft', 'ShiftRight']) {
+    assert.equal(registraTecla(codigo), true, codigo);
+  }
+  for (const codigo of ['Tab', 'F5', 'Digit1', 'ControlLeft', 'Keyboard']) {
+    assert.equal(registraTecla(codigo), false, codigo);
+  }
 });
