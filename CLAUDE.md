@@ -24,6 +24,23 @@ apresentação de grupo (28/11/2026). Bilíngue (PT/EN), teclado e controle 8Bit
 - Branches: o trunk é `dev` (base dos PRs e das integrações), não a default `main`
   que o `gh` informa; `main` recebe `dev` quando o autor decide publicar.
 
+## Armadilhas conhecidas
+
+- **Smoke**: a checagem "a invulnerabilidade não acabou depois de ~1 s" já falha na
+  `dev`; não é regressão de quem a encontra.
+- **Áudio no smoke**: o Chromium headless não inicia áudio a partir de input
+  simulado (precisa de `--autoplay-policy=no-user-gesture-required`), e o Chrome só
+  atualiza o `.value` do ganho de mute do Phaser com um som tocando — toque um som
+  antes de ler `sound.mute`.
+- **Toque no smoke**: no Playwright, `hasTouch: true` sozinho já torna
+  `(any-pointer: fine)` falso; basta para emular aparelho de toque.
+- **Plataforma móvel no Arcade**: `physics.add.group` zera o `friction.x` dos corpos,
+  então uma plataforma imóvel que anda não carrega quem está em cima sem
+  `body.setFrictionX(1)`.
+- **Fins de linha**: há arquivos CRLF na árvore de trabalho com LF no índice
+  (`catalogo.js`, `fase.js`, `smoke.js`, `main.js`…). Substituição por script que
+  supõe `\n` não casa e falha calada.
+
 ## Documentação
 
 - Glossário de domínio: [`CONTEXT.md`](CONTEXT.md) — use os termos dele (Fase, não
