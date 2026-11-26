@@ -3,11 +3,13 @@
  * sem Phaser, e devolve a lista de problemas (vazia quando a Fase está boa).
  *
  * Objetos da Fase: `inicio`, `fim`, `item` (id do Item no tipo), `samambaia` (chave do Fato
- * no tipo) e `predador` (espécie no tipo). Vãos e degraus não são conferidos aqui: quem os
+ * no tipo), `predador` (espécie no tipo), `placa` (chave do texto no tipo, ação na
+ * propriedade `acao`) e `ovelha`. Vãos e degraus não são conferidos aqui: quem os
  * recusa é o gerador de Fase.
  */
 
 import { chaveNomePredador } from './catalogo.js';
+import { acaoDaPlaca, BOTOES_DA_ACAO } from './placa.js';
 
 /**
  * @typedef {Object} Problema
@@ -89,6 +91,13 @@ export function validarFase(fase, mapa, contexto) {
 
   for (const { type: item } of comNome('item')) {
     if (!fase.itens.includes(item)) problema('item', `Item ${item} fora do catálogo da Fase`);
+  }
+  for (const placa of comNome('placa')) {
+    for (const [idioma, dicionario] of Object.entries(contexto.dicionarios)) {
+      if (!Object.hasOwn(dicionario, placa.type)) problema('placa-sem-texto', `Placa ${placa.type} sem texto em ${idioma}`);
+    }
+    const acao = acaoDaPlaca(placa);
+    if (!Object.hasOwn(BOTOES_DA_ACAO, acao ?? '')) problema('placa-acao', `Placa ${placa.type} ensina ${acao ?? 'nenhuma ação'}, sem ícone de botão`);
   }
   for (const especie of new Set(comNome('predador').map((predador) => predador.type))) {
     if (!contexto.predadores.includes(especie)) {
