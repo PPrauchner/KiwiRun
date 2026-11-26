@@ -23,7 +23,9 @@
  * encurtados: aviso e Volta no Menu (em EN, volta em PT), na Fase, na Pausa e no Placar, "---"
  * nas Iniciais e nenhum aviso na Tela inicial; os efeitos sonoros de pular, coletar, capturar e
  * achar uma Samambaia-prateada; e o Silêncio: M e Select com o ícone, persistindo ao recarregar
- * e na Volta, sem descongelar a Fase nem a Pausa, e M digitando nas Iniciais. Falha também se houver erro no console ou
+ * e na Volta, sem descongelar a Fase nem a Pausa, e M digitando nas Iniciais; e o aviso de toque:
+ * ausente no desktop, presente com toque emulado (com o link do Pages, sem Wake Lock no
+ * navegador, e qualquer tecla abrindo o Menu), com a Wake Lock pedida ao abrir. Falha também se houver erro no console ou
  * requisição fora da origem.
  *
  * Uso: `npm run smoke`. Sai com código 1 e a lista de problemas quando algo falha.
@@ -1059,6 +1061,56 @@ async function verificarSilencio(pagina) {
 }
 
 /**
+ * Lê os textos da Tela inicial.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, com a Tela inicial ativa.
+ * @returns {Promise<string[]>} Os textos bitmap da cena.
+ */
+function textosDaTelaInicial(pagina) {
+  return pagina.evaluate((cena) => window.kiwirun.jogo.scene.getScene(cena).children.list
+    .filter((objeto) => objeto.type === 'BitmapText')
+    .map((objeto) => objeto.text), CENA_TELA_INICIAL);
+}
+
+/**
+ * Abre o jogo num aparelho de toque emulado, sem Wake Lock no navegador: a Tela inicial mostra
+ * "Jogue no computador" com o link do Pages, nada quebra, e uma tecla abre o Menu mesmo assim.
+ *
+ * @param {import('playwright').Browser} navegador - O navegador do smoke.
+ * @param {string} url - O endereço do jogo.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarToque(navegador, url) {
+  const problemas = [];
+  const contexto = await navegador.newContext({ viewport: { width: 1280, height: 720 }, hasTouch: true });
+  const pagina = await contexto.newPage();
+  pagina.on('console', (mensagem) => {
+    if (mensagem.type() === 'error') problemas.push(`erro no console com toque: ${mensagem.text()}`);
+  });
+  pagina.on('pageerror', (erro) => problemas.push(`exceção na página com toque: ${erro.message}`));
+  await pagina.addInitScript(() => {
+    delete Navigator.prototype.wakeLock;
+  });
+  try {
+    await pagina.goto(url);
+    await pagina.waitForFunction((cena) => window.kiwirun?.jogo?.scene.isActive(cena), CENA_TELA_INICIAL, { timeout: LIMITE_MS });
+    const textos = await textosDaTelaInicial(pagina);
+    for (const chave of ['tela_inicial.toque', 'tela_inicial.link']) {
+      const esperado = criarTextos().t(chave);
+      if (!textos.includes(esperado)) problemas.push(`com toque, a Tela inicial não mostrou "${esperado}"`);
+    }
+    await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+    await pagina.keyboard.press('Enter');
+    await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.isActive(cena), CENA_MENU, { timeout: LIMITE_MS });
+  } catch (erro) {
+    problemas.push(`com toque, o jogo não seguiu da Tela inicial ao Menu: ${erro.message}`);
+  } finally {
+    await contexto.close();
+  }
+  return problemas;
+}
+
+/**
  * Abre o jogo e devolve o que deu errado.
  *
  * @param {string} url - Endereço do jogo servido localmente.
@@ -1071,6 +1123,18 @@ async function verificarJogo(url) {
   // do Phaser não chega a valer.
   const navegador = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
   const pagina = await navegador.newPage({ viewport: { width: 1280, height: 720 } });
+
+  // Conta os pedidos de Wake Lock; a recusa do headless não pode virar erro no console.
+  await pagina.addInitScript(() => {
+    window.kiwirunPedidosTrava = 0;
+    const trava = navigator.wakeLock;
+    if (!trava) return;
+    const pedir = trava.request.bind(trava);
+    trava.request = (tipo) => {
+      window.kiwirunPedidosTrava += 1;
+      return pedir(tipo);
+    };
+  });
 
   try {
     pagina.on('console', (mensagem) => {
@@ -1111,6 +1175,8 @@ async function verificarJogo(url) {
     for (const esperado of esperados) {
       if (!tela.textos.includes(esperado)) problemas.push(`Tela inicial sem o texto "${esperado}"`);
     }
+    if (tela.textos.includes(textos.t('tela_inicial.toque'))) problemas.push('no desktop, a Tela inicial mostrou o aviso de toque');
+    if ((await pagina.evaluate(() => window.kiwirunPedidosTrava)) < 1) problemas.push('o jogo não pediu a Wake Lock');
   } catch (erro) {
     problemas.push(`Tela inicial não abriu: ${erro.message}`);
     await navegador.close();
@@ -1143,6 +1209,7 @@ async function verificarJogo(url) {
     problemas.push(...await verificarReiniciar(pagina));
     problemas.push(...await verificarVolta(pagina));
     problemas.push(...await verificarSilencio(pagina));
+    problemas.push(...await verificarToque(navegador, url));
   } catch (erro) {
     problemas.push(`Pecuária não carregou pelo Menu: ${erro.message}`);
   } finally {
@@ -1159,4 +1226,4 @@ if (problemas.length > 0) {
   console.error(`Smoke falhou:\n- ${problemas.join('\n- ')}`);
   process.exit(1);
 }
-console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu, Créditos e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Placas, Ovelhas, Iniciais, Placar, Recorde (recarregar e zerar), Pausa, bloqueio de entrada, Volta por inatividade, efeitos sonoros e Silêncio funcionando, sem erro no console nem requisição fora da origem.');
+console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu, Créditos e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Placas, Ovelhas, Iniciais, Placar, Recorde (recarregar e zerar), Pausa, bloqueio de entrada, Volta por inatividade, efeitos sonoros, Silêncio, aviso de toque e Wake Lock funcionando, sem erro no console nem requisição fora da origem.');
