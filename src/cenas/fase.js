@@ -16,7 +16,7 @@
 import { buscarFase, chaveNomePredador, imagemItem } from '../logica/catalogo.js';
 import { resolverContato, SEGUNDOS_INVULNERAVEL, SEGUNDOS_ROTULO_CAPTURA } from '../logica/captura.js';
 import { criarControlePulo } from '../logica/controle-pulo.js';
-import { criarCronometro, formatarTempo } from '../logica/cronometro.js';
+import { criarCronometro } from '../logica/cronometro.js';
 import { criarFilaDeFatos, LARGURA_FATO } from '../logica/fila-fatos.js';
 import { criarInput } from '../logica/input.js';
 import { FISICA, TILE } from '../logica/pulo.js';
@@ -185,7 +185,7 @@ export class Fase extends Phaser.Scene {
       this.physics.resume();
     }
     this.cronometro.avancar(delta / 1000);
-    this.hudTempo.setText(formatarTempo(this.cronometro.segundos));
+    this.hudTempo.setText(this.registry.get('textos').tempo(this.cronometro.segundos));
     this.filaFatos.avancar(delta / 1000);
     this.mostrarFato(this.filaFatos.atual);
   }
@@ -318,7 +318,7 @@ export class Fase extends Phaser.Scene {
   criarHud() {
     const { width: largura } = this.scale;
     const fixo = (objeto) => objeto.setScrollFactor(0).setDepth(PROFUNDIDADE_HUD);
-    this.hudTempo = fixo(this.add.bitmapText(MARGEM_HUD, MARGEM_HUD, FONTE, formatarTempo(0), TAMANHO_FONTE_HUD));
+    this.hudTempo = fixo(this.add.bitmapText(MARGEM_HUD, MARGEM_HUD, FONTE, this.registry.get('textos').tempo(0), TAMANHO_FONTE_HUD));
     const [primeiroItem] = this.fase.itens;
     const larguraIcone = primeiroItem ? TILE + MARGEM_HUD / 2 : 0;
     if (primeiroItem) {

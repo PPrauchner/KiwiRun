@@ -10,7 +10,6 @@
  */
 import { FONTE } from './preload.js';
 import { buscarFase, chaveNomeItem, chaveNomePredador, proximaFase } from '../logica/catalogo.js';
-import { formatarTempo } from '../logica/cronometro.js';
 import { LARGURA_FATO } from '../logica/fila-fatos.js';
 import { criarInput } from '../logica/input.js';
 import { chaveOpcaoPlacar, criarMenuPlacar } from '../logica/menu-placar.js';
@@ -91,10 +90,10 @@ export class Placar extends Phaser.Scene {
 
   /**
    * @param {number} segundos - Um tempo, em segundos.
-   * @returns {string} O tempo com o separador decimal do idioma atual.
+   * @returns {string} O tempo no formato do idioma atual.
    */
   tempo(segundos) {
-    return formatarTempo(segundos, this.textos.t('numero.separador_decimal'));
+    return this.textos.tempo(segundos);
   }
 
   /** Tempo gasto, um desconto por linha e o Tempo final, com os valores alinhados à direita. */
