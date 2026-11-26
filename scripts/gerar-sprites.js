@@ -1,6 +1,6 @@
 /**
  * @file Gera os PNGs próprios na grade de 18×18: o sprite do Kiwi (faixa de quadros),
- * um sprite por Item, o da Samambaia-prateada, um por espécie de Predador, o da Ovelha, os ícones de botão das Placas e o do Silêncio (som cortado), o da esteira e o tileset do Porto (contêineres e cais), desenhados por código numa paleta de pixel art. Os outros tiles vêm do Kenney Pixel
+ * um sprite por Item, o da Samambaia-prateada, um por espécie de Predador, o da Ovelha, os ícones de botão das Placas e o do Silêncio (som cortado), o da esteira, o da viga do guindaste e o tileset do Porto (contêineres e cais), desenhados por código numa paleta de pixel art. Os outros tiles vêm do Kenney Pixel
  * Platformer (CC0). Sem dependências além do Node.
  *
  * Uso: `npm run gerar:sprites`.
@@ -461,12 +461,39 @@ const COR_ESTEIRA = Object.freeze({
 function desenhoEsteira(x, y) {
   if (y === 0 || y === 7) return COR_ESTEIRA.borda;
   if (y < 7) {
-    const seta = Math.abs(y - 3.5) + 0.5;
+    // A ponta da seta, mais à direita, fica nas linhas do meio.
+    const seta = 3 - Math.abs(y - 3.5);
     return x >= 6 + seta && x <= 8 + seta ? COR_ESTEIRA.seta : COR_ESTEIRA.lona;
   }
   const rolo = Math.hypot(x + 0.5 - 9, y + 0.5 - 12) <= 4.5;
   if (rolo) return Math.hypot(x + 0.5 - 9, y + 0.5 - 12) <= 1.5 ? COR_ESTEIRA.borda : COR_ESTEIRA.rolo;
   return y >= 16 ? COR_ESTEIRA.borda : COR_ESTEIRA.lona;
+}
+
+export const IMAGEM_GUINDASTE = 'assets/sprites/guindaste.png';
+
+/** Altura da viga do guindaste no sprite, em pixels: o resto do quadro fica transparente. */
+const ALTURA_VIGA = 8;
+
+/** Paleta da viga do guindaste: laranja de obra com a treliça escura. */
+const COR_VIGA = Object.freeze({
+  laranja: 0xdf7126,
+  sombra: 0x8f3e1a,
+  contorno: 0x45283c,
+});
+
+/**
+ * Viga do guindaste, num tile que se repete: banzo laranja em cima e embaixo, treliça em
+ * zigue-zague no meio e o resto transparente.
+ *
+ * @type {Desenho}
+ */
+function desenhoGuindaste(x, y) {
+  if (y >= ALTURA_VIGA) return null;
+  if (y === 0 || y === ALTURA_VIGA - 1) return COR_VIGA.contorno;
+  if (y === 1 || y === ALTURA_VIGA - 2) return COR_VIGA.laranja;
+  const diagonal = (x % 9) - 1 === y - 2 || 8 - (x % 9) === y - 1;
+  return diagonal ? COR_VIGA.laranja : COR_VIGA.sombra;
 }
 
 /** Desenho de cada tile do Porto, na ordem dos ids do tileset. */
@@ -527,5 +554,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   await gravar(TILESET_PORTO.imagem, montarGrade(DESENHOS_TILES_PORTO, TILESET_PORTO.colunas));
   await gravar(IMAGEM_ESTEIRA, montarGrade([desenhoEsteira], 1));
   console.log(`Gerado ${IMAGEM_ESTEIRA}`);
+  await gravar(IMAGEM_GUINDASTE, montarGrade([desenhoGuindaste], 1));
+  console.log(`Gerado ${IMAGEM_GUINDASTE}`);
   console.log(`Gerado ${TILESET_PORTO.imagem}`);
 }
