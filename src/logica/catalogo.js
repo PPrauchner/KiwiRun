@@ -113,6 +113,19 @@ export function buscarFase(id) {
 }
 
 /**
+ * A Fase seguinte a uma Fase, no mesmo Mundo, se já pode ser jogada.
+ *
+ * @param {string} id - Id da Fase atual.
+ * @param {readonly Mundo[]} [mundos] - Os Mundos; o padrão é o catálogo do jogo.
+ * @returns {Fase | null} A próxima Fase, ou `null` se é a última do Mundo ou está em breve.
+ */
+export function proximaFase(id, mundos = MUNDOS) {
+  const { fases } = mundos.find((mundo) => mundo.fases.some((fase) => fase.id === id));
+  const seguinte = fases[fases.findIndex((fase) => fase.id === id) + 1];
+  return seguinte && !seguinte.emBreve ? seguinte : null;
+}
+
+/**
  * Caminho do sprite de um Item, gerado por script, a partir da raiz do site.
  *
  * @param {string} item - Id do Item.
