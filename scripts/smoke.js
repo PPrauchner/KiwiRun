@@ -12,8 +12,11 @@
  * Fase"), o bloqueio de entrada (o pulo segurado ao tocar o fim não escolhe nada no Placar,
  * e o pulo segurado ao entrar por "Jogar de novo" não faz o Kiwi pular), a Fase recomeçada
  * do zero, Esc do Placar ao Menu, o Recorde no Menu antes e depois de recarregar a página, e
- * Shift+Backspace por 3 s na Tela inicial zerando os Recordes. Falha também se houver erro
- * no console ou requisição fora da origem.
+ * Shift+Backspace por 3 s na Tela inicial zerando os Recordes, e a Pausa: Esc antes do primeiro
+ * input não dá a partida, Esc congela o cronômetro e o Fato, "Controles" em PT, perder o foco
+ * e desconectar o controle abrem a Pausa, "Reiniciar a Fase" com o pulo segurado recomeça do
+ * zero sem o Kiwi pular, e "Menu" sai para o Menu. Falha também se houver erro no console ou
+ * requisição fora da origem.
  *
  * Uso: `npm run smoke`. Sai com código 1 e a lista de problemas quando algo falha.
  */
@@ -27,6 +30,7 @@ import { chaveNomeItem, chaveNomePredador } from '../src/logica/catalogo.js';
 import { SEGUNDOS_INVULNERAVEL } from '../src/logica/captura.js';
 import { SEGUNDOS_BLOQUEIO } from '../src/logica/input.js';
 import { SEGUNDOS_ZERAR, textoRecorde } from '../src/logica/recorde.js';
+import { chaveOpcaoPausa, LINHAS_CONTROLES } from '../src/logica/menu-pausa.js';
 
 const LIMITE_MS = 15_000;
 const CENA_TELA_INICIAL = 'tela-inicial';
@@ -34,6 +38,7 @@ const CENA_MENU = 'menu';
 const CENA_FASE = 'fase';
 const CENA_PLACAR = 'placar';
 const CENA_INICIAIS = 'iniciais';
+const CENA_PAUSA = 'pausa';
 const FASE_PECUARIA = 'pecuaria';
 const MAPA_PECUARIA = new URL('../assets/mapas/pecuaria.tmj', import.meta.url);
 /** Quanto esperar para ver se algo se mexe (ou não), em ms. */
@@ -151,6 +156,161 @@ async function verificarItensECheckpoints(pagina) {
     problemas.push('voltar ao Checkpoint perdeu as Samambaias-prateadas ou os Fatos encontrados');
   }
   problemas.push(...await verificarPredadores(pagina, levarKiwi, checkpoint));
+  return problemas;
+}
+
+/**
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ * @param {string} cena - A chave da cena.
+ * @returns {Promise<boolean>} Se a cena está ativa agora.
+ */
+function cenaAtiva(pagina, cena) {
+  return pagina.evaluate((chave) => window.kiwirun.jogo.scene.isActive(chave), cena);
+}
+
+/**
+ * Na Pecuária recém-aberta, ainda parada: Esc abre a Pausa sem dar a partida no cronômetro, e
+ * Esc a fecha com a Fase ainda congelada.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, com a Fase recém-aberta.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarPausaAntesDoInput(pagina) {
+  const problemas = [];
+  const antes = await estadoDaFase(pagina);
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('Escape');
+  if (!(await esperarCena(pagina, CENA_PAUSA))) return ['Esc na Fase não abriu a Pausa'];
+  const textos = criarTextos();
+  const pausa = await textosDaCena(pagina, CENA_PAUSA);
+  for (const chave of ['pausa.titulo', ...['continuar', 'reiniciar', 'controles', 'menu'].map(chaveOpcaoPausa)]) {
+    if (!pausa.includes(textos.t(chave))) problemas.push(`Pausa sem o texto "${textos.t(chave)}"`);
+  }
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  await pagina.keyboard.press('Escape');
+  if (!(await esperarCena(pagina, CENA_FASE))) return [...problemas, 'Esc na Pausa não voltou à Fase'];
+  await pagina.waitForTimeout(ESPERA_MS);
+  const depois = await estadoDaFase(pagina);
+  if (depois.segundos !== 0 || depois.y !== antes.y) problemas.push('abrir a Pausa antes do primeiro input deu a partida na Fase');
+  return problemas;
+}
+
+/**
+ * Com a Fase andando: Esc congela o cronômetro e o Fato na tela, "Controles" mostra o 8BitDo
+ * e o teclado em PT, continuar retoma; perder o foco e desconectar o controle abrem a Pausa.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, com a Fase andando.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarPausaAndando(pagina) {
+  const problemas = [];
+  const textos = criarTextos();
+  // Um Fato na tela antes da Pausa, sem pegar a última Samambaia-prateada (o Placar confere o "???").
+  const [{ type: chaveFato }] = await objetosDaPecuaria('samambaia');
+  await pagina.evaluate(([cena, chave]) => window.kiwirun.jogo.scene.getScene(cena).filaFatos.enfileirar(chave), [CENA_FASE, chaveFato]);
+  await pagina.waitForTimeout(ESPERA_MS / 2);
+  const fatoNaTela = await pagina.evaluate((cena) => window.kiwirun.jogo.scene.getScene(cena).filaFatos.atual, CENA_FASE);
+  await pagina.keyboard.press('Escape');
+  if (!(await esperarCena(pagina, CENA_PAUSA))) return ['Esc na Fase andando não abriu a Pausa'];
+  const aberta = await estadoDaFase(pagina);
+  await pagina.waitForTimeout(DURACAO_FATO * 1000 + ESPERA_MS);
+  const parada = await estadoDaFase(pagina);
+  if (parada.segundos !== aberta.segundos) problemas.push('o cronômetro andou com a Pausa aberta');
+  if (fatoNaTela === null || !parada.textos.includes(textos.t(fatoNaTela))) problemas.push('o Fato na tela saiu com a Pausa aberta');
+
+  // Controles: duas descidas e confirmar; Enter volta às opções.
+  for (const tecla of ['ArrowDown', 'ArrowDown', 'Enter']) {
+    await pagina.keyboard.press(tecla);
+    await pagina.waitForTimeout(ESPERA_MS / 4);
+  }
+  const controles = await textosDaCena(pagina, CENA_PAUSA);
+  const esperados = ['controles.titulo', 'controles.8bitdo', 'controles.teclado',
+    ...LINHAS_CONTROLES.flatMap(({ chaveAcao, chave8BitDo, chaveTeclado }) => [chaveAcao, chave8BitDo, chaveTeclado])];
+  for (const chave of esperados) {
+    if (!controles.includes(textos.t(chave))) problemas.push(`Controles sem o texto "${textos.t(chave)}"`);
+  }
+  await pagina.keyboard.press('Enter');
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  await pagina.keyboard.press('Escape');
+  if (!(await esperarCena(pagina, CENA_FASE))) return [...problemas, 'Esc na Pausa não a fechou depois dos Controles'];
+  await pagina.waitForTimeout(ESPERA_MS);
+  if ((await estadoDaFase(pagina)).segundos <= parada.segundos) problemas.push('continuar não retomou o cronômetro');
+
+  for (const [evento, nome] of [['blur', 'perder o foco'], ['gamepaddisconnected', 'desconectar o controle']]) {
+    await pagina.evaluate((tipo) => window.dispatchEvent(new Event(tipo)), evento);
+    if (!(await esperarCena(pagina, CENA_PAUSA))) {
+      problemas.push(`${nome} não abriu a Pausa`);
+      continue;
+    }
+    await pagina.waitForTimeout(ESPERA_MS / 4);
+    await pagina.keyboard.press('Escape');
+    if (!(await esperarCena(pagina, CENA_FASE))) return [...problemas, `Esc não fechou a Pausa aberta por ${nome}`];
+  }
+  return problemas;
+}
+
+/**
+ * Do Menu, abre a Pecuária, anda, coleta um Item, passa por um Checkpoint e captura um
+ * Predador; "Reiniciar a Fase" com o pulo segurado recomeça do zero sem o Kiwi pular, e
+ * "Menu" na Pausa vai ao Menu.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, no Menu.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarReiniciar(pagina) {
+  const problemas = [];
+  const itens = await objetosDaPecuaria('item');
+  const predadores = await objetosDaPecuaria('predador');
+  const [checkpoint] = await objetosDaPecuaria('checkpoint');
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('Enter');
+  if (!(await esperarCena(pagina, CENA_FASE))) return ['Enter no Menu não abriu a Pecuária de novo'];
+  await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.getScene(cena)?.kiwi?.active === true, CENA_FASE, { timeout: LIMITE_MS });
+  const { x: inicioX } = await estadoDaFase(pagina);
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.down('ArrowRight');
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  await pagina.keyboard.up('ArrowRight');
+  const levarKiwi = (x, y) => pagina.evaluate(([cena, alvoX, alvoY]) => {
+    window.kiwirun.jogo.scene.getScene(cena).kiwi.body.reset(alvoX, alvoY);
+  }, [CENA_FASE, x, y]);
+  await levarKiwi(itens[0].x, itens[0].y);
+  await pagina.waitForTimeout(ESPERA_MS / 2);
+  await levarKiwi(checkpoint.x, checkpoint.y - 9);
+  await pagina.waitForTimeout(ESPERA_MS / 2);
+  const [alvo] = (await estadoDaFase(pagina)).predadores;
+  await levarKiwi(alvo.x, alvo.y - 40);
+  await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.getScene(cena).capturas > 0, CENA_FASE, { timeout: 2000 }).catch(() => {});
+  const antes = await estadoDaFase(pagina);
+  if (antes.capturas !== 1 || antes.textos.includes(`0/${itens.length}`)) problemas.push('a preparação do reinício não coletou um Item nem capturou');
+
+  await pagina.keyboard.press('Escape');
+  if (!(await esperarCena(pagina, CENA_PAUSA))) return [...problemas, 'Esc na Fase não abriu a Pausa para reiniciar'];
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  await pagina.keyboard.press('ArrowDown');
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  await pagina.keyboard.down('Space');
+  if (!(await esperarCena(pagina, CENA_FASE))) return [...problemas, '"Reiniciar a Fase" não reabriu a Fase'];
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS + ESPERA_MS);
+  const deNovo = await estadoDaFase(pagina);
+  const checkpointAtivo = await pagina.evaluate((cena) => window.kiwirun.jogo.scene.getScene(cena).checkpoint.x, CENA_FASE);
+  await pagina.keyboard.up('Space');
+  if (deNovo.segundos !== 0 || deNovo.vy !== 0) problemas.push('o pulo segurado ao reiniciar fez o Kiwi pular na Fase');
+  if (deNovo.capturas !== 0 || deNovo.fatosEncontrados !== 0 || deNovo.predadores.length !== predadores.length) {
+    problemas.push('"Reiniciar a Fase" não zerou as Capturas e as Samambaias-prateadas nem devolveu os Predadores');
+  }
+  if (!deNovo.textos.includes(`0/${itens.length}`)) problemas.push('"Reiniciar a Fase" não zerou os Itens');
+  if (checkpointAtivo !== inicioX || deNovo.x !== inicioX) problemas.push('"Reiniciar a Fase" não voltou ao Checkpoint do início');
+
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  await pagina.keyboard.press('Escape');
+  if (!(await esperarCena(pagina, CENA_PAUSA))) return [...problemas, 'Esc não abriu a Pausa depois de reiniciar'];
+  for (const tecla of ['ArrowDown', 'ArrowDown', 'ArrowDown', 'Enter']) {
+    await pagina.keyboard.press(tecla);
+    await pagina.waitForTimeout(ESPERA_MS / 4);
+  }
+  if (!(await esperarCena(pagina, CENA_MENU))) problemas.push('"Menu" na Pausa não foi ao Menu');
+  if (await cenaAtiva(pagina, CENA_FASE) || await cenaAtiva(pagina, CENA_PAUSA)) problemas.push('a Fase ou a Pausa ficaram abertas depois de ir ao Menu');
   return problemas;
 }
 
@@ -583,9 +743,12 @@ async function verificarJogo(url) {
       return { id: dados.id, temKiwi: Boolean(kiwi.body) };
     }, CENA_FASE);
     if (fase.id !== 'pecuaria' || !fase.temKiwi) problemas.push(`Fase aberta: ${JSON.stringify(fase)}`);
+    problemas.push(...await verificarPausaAntesDoInput(pagina));
     problemas.push(...await verificarItensECheckpoints(pagina));
+    problemas.push(...await verificarPausaAndando(pagina));
     problemas.push(...await verificarPlacar(pagina));
     problemas.push(...await verificarRecorde(pagina));
+    problemas.push(...await verificarReiniciar(pagina));
   } catch (erro) {
     problemas.push(`Pecuária não carregou pelo Menu: ${erro.message}`);
   } finally {
@@ -602,4 +765,4 @@ if (problemas.length > 0) {
   console.error(`Smoke falhou:\n- ${problemas.join('\n- ')}`);
   process.exit(1);
 }
-console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Iniciais, Placar, Recorde (recarregar e zerar) e bloqueio de entrada funcionando, sem erro no console nem requisição fora da origem.');
+console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Iniciais, Placar, Recorde (recarregar e zerar), Pausa e bloqueio de entrada funcionando, sem erro no console nem requisição fora da origem.');
