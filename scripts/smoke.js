@@ -6,11 +6,14 @@
  * carregada e confere o HUD,
  * a Fase parada até o primeiro input, a coleta de um Item, as Samambaias-prateadas e a
  * Fila de Fatos, a volta ao Checkpoint, e os Predadores: Captura, contato lateral e a
- * invulnerabilidade depois de voltar, o Placar ao tocar o fim (Tempo final, Itens por tipo,
- * Capturas por espécie, Fatos e "???", sem "Próxima Fase"), o bloqueio de entrada (o pulo
- * segurado ao tocar o fim não escolhe nada no Placar, e o pulo segurado ao entrar por "Jogar
- * de novo" não faz o Kiwi pular), a Fase recomeçada do zero e Esc do Placar ao Menu. Falha
- * também se houver erro no console ou requisição fora da origem.
+ * invulnerabilidade depois de voltar, as Iniciais do primeiro Recorde (o pulo segurado não
+ * confirma, digitar letras sem mover o cursor, Esc volta uma letra), o Placar com "Novo
+ * Recorde" (Tempo final, Itens por tipo, Capturas por espécie, Fatos e "???", sem "Próxima
+ * Fase"), o bloqueio de entrada (o pulo segurado ao tocar o fim não escolhe nada no Placar,
+ * e o pulo segurado ao entrar por "Jogar de novo" não faz o Kiwi pular), a Fase recomeçada
+ * do zero, Esc do Placar ao Menu, o Recorde no Menu antes e depois de recarregar a página, e
+ * Shift+Backspace por 3 s na Tela inicial zerando os Recordes. Falha também se houver erro
+ * no console ou requisição fora da origem.
  *
  * Uso: `npm run smoke`. Sai com código 1 e a lista de problemas quando algo falha.
  */
@@ -23,12 +26,15 @@ import { DURACAO_FATO } from '../src/logica/fila-fatos.js';
 import { chaveNomeItem, chaveNomePredador } from '../src/logica/catalogo.js';
 import { SEGUNDOS_INVULNERAVEL } from '../src/logica/captura.js';
 import { SEGUNDOS_BLOQUEIO } from '../src/logica/input.js';
+import { SEGUNDOS_ZERAR, textoRecorde } from '../src/logica/recorde.js';
 
 const LIMITE_MS = 15_000;
 const CENA_TELA_INICIAL = 'tela-inicial';
 const CENA_MENU = 'menu';
 const CENA_FASE = 'fase';
 const CENA_PLACAR = 'placar';
+const CENA_INICIAIS = 'iniciais';
+const FASE_PECUARIA = 'pecuaria';
 const MAPA_PECUARIA = new URL('../assets/mapas/pecuaria.tmj', import.meta.url);
 /** Quanto esperar para ver se algo se mexe (ou não), em ms. */
 const ESPERA_MS = 400;
@@ -336,7 +342,9 @@ async function verificarPlacar(pagina) {
   const predadores = await objetosDaPecuaria('predador');
   await pagina.keyboard.down('Space');
   await levarAoFim(pagina);
-  if (!(await esperarCena(pagina, CENA_PLACAR))) return ['tocar o fim não abriu o Placar'];
+  if (!(await esperarCena(pagina, CENA_INICIAIS))) return ['o primeiro fim da Pecuária não abriu as Iniciais'];
+  problemas.push(...await verificarIniciais(pagina));
+  if (!(await esperarCena(pagina, CENA_PLACAR))) return [...problemas, 'gravar as Iniciais não abriu o Placar'];
 
   await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS + ESPERA_MS);
   if (!(await pagina.evaluate((cena) => window.kiwirun.jogo.scene.isActive(cena), CENA_PLACAR))) {
@@ -351,7 +359,7 @@ async function verificarPlacar(pagina) {
     problemas.push(`Placar sem "${nomeDoTipo} N/${totalDoTipo}" com o Item coletado`);
   }
   const esperados = [
-    'placar.titulo', 'placar.tempo_gasto', 'placar.desconto_itens', 'placar.desconto_capturas',
+    'placar.titulo', 'placar.novo_recorde', 'placar.tempo_gasto', 'placar.desconto_itens', 'placar.desconto_capturas',
     'placar.desconto_samambaias', 'placar.tempo_final', 'placar.fatos', 'placar.fato_faltando', 'placar.convite',
     'placar.jogar_de_novo', 'placar.menu',
   ].map((chave) => textos.t(chave));
@@ -382,10 +390,124 @@ async function verificarPlacar(pagina) {
   await pagina.waitForTimeout(ESPERA_MS / 4);
   await pagina.keyboard.up('ArrowRight');
   await levarAoFim(pagina);
+  // O segundo passeio costuma ser mais rápido: um Novo Recorde passa de novo pelas Iniciais.
+  await pagina.waitForFunction((cenas) => cenas.some((cena) => window.kiwirun.jogo.scene.isActive(cena)), [CENA_INICIAIS, CENA_PLACAR], { timeout: 2000 }).catch(() => {});
+  if (await pagina.evaluate((cena) => window.kiwirun.jogo.scene.isActive(cena), CENA_INICIAIS)) {
+    await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+    for (const letra of 'ABC') await pagina.keyboard.press(`Key${letra}`);
+  }
   if (!(await esperarCena(pagina, CENA_PLACAR))) return [...problemas, 'tocar o fim de novo não abriu o Placar'];
   await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
   await pagina.keyboard.press('Escape');
   if (!(await esperarCena(pagina, CENA_MENU))) problemas.push('Esc no Placar não foi ao Menu');
+  return problemas;
+}
+
+/**
+ * @param {import('playwright').Page} pagina - A página do jogo, com as Iniciais abertas.
+ * @returns {Promise<{ letras: string, posicao: number, textos: string[] }>} As letras, o
+ *   cursor e os textos das Iniciais.
+ */
+function estadoDasIniciais(pagina) {
+  return pagina.evaluate((cena) => {
+    const { iniciais, children } = window.kiwirun.jogo.scene.getScene(cena);
+    const textos = children.list.filter((objeto) => objeto.type === 'BitmapText').map((objeto) => objeto.text);
+    return { letras: iniciais.letras, posicao: iniciais.posicao, textos };
+  }, CENA_INICIAIS);
+}
+
+/**
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ * @returns {Promise<import('../src/logica/recorde.js').Recorde | null>} O Recorde da Pecuária.
+ */
+function lerRecorde(pagina) {
+  return pagina.evaluate((faseId) => window.kiwirun.jogo.registry.get('recordes').ler(faseId), FASE_PECUARIA);
+}
+
+/**
+ * Nas Iniciais, com o pulo segurado desde o fim da Fase: o pulo não confirma, digitar W e M
+ * preenche as letras sem mover o cursor, Esc volta uma letra, a seta para cima troca a letra
+ * e "K" grava as Iniciais "WNK" no Recorde. Termina com o pulo ainda segurado.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, com as Iniciais abertas.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarIniciais(pagina) {
+  const problemas = [];
+  const textos = criarTextos();
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  const inicio = await estadoDasIniciais(pagina);
+  if (inicio.letras !== 'AAA' || inicio.posicao !== 0) problemas.push(`Iniciais não começaram em "AAA" na primeira letra: ${JSON.stringify(inicio)}`);
+  for (const chave of ['iniciais.titulo', 'iniciais.instrucao']) {
+    if (!inicio.textos.includes(textos.t(chave))) problemas.push(`Iniciais sem o texto "${textos.t(chave)}"`);
+  }
+
+  await pagina.keyboard.press('KeyW');
+  await pagina.keyboard.press('KeyM');
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  const digitado = await estadoDasIniciais(pagina);
+  if (digitado.letras !== 'WMA' || digitado.posicao !== 2) problemas.push(`digitar W e M não preencheu "WMA": ${JSON.stringify(digitado)}`);
+
+  // Um toque por quadro: na mesma leitura, a ordem entre eles não é garantida.
+  for (const tecla of ['Escape', 'ArrowUp', 'Enter']) {
+    await pagina.keyboard.press(tecla);
+    await pagina.waitForTimeout(ESPERA_MS / 4);
+  }
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  const corrigido = await estadoDasIniciais(pagina);
+  if (corrigido.letras !== 'WNA' || corrigido.posicao !== 2) problemas.push(`Esc e a seta para cima não corrigiram para "WNA": ${JSON.stringify(corrigido)}`);
+
+  await pagina.keyboard.press('KeyK');
+  await esperarCena(pagina, CENA_PLACAR);
+  const recorde = await lerRecorde(pagina);
+  if (recorde?.iniciais !== 'WNK') problemas.push(`as Iniciais gravadas no Recorde não são "WNK": ${JSON.stringify(recorde)}`);
+  return problemas;
+}
+
+/**
+ * No Menu, a Pecuária mostra o Recorde gravado ("ABC 42,3 s"); ele sobrevive a recarregar a
+ * página, e segurar Shift+Backspace por 3 s na Tela inicial o zera, com a confirmação, e o
+ * Menu volta a "—".
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, no Menu, com um Recorde.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarRecorde(pagina) {
+  const problemas = [];
+  const textos = criarTextos();
+  const recorde = await lerRecorde(pagina);
+  if (!recorde?.iniciais) return [`a Pecuária terminou sem Recorde com Iniciais: ${JSON.stringify(recorde)}`];
+  const esperado = textoRecorde(recorde, textos);
+  if (!(await textosDaCena(pagina, CENA_MENU)).includes(esperado)) problemas.push(`Menu sem o Recorde "${esperado}"`);
+
+  await pagina.reload();
+  await pagina.waitForFunction((cena) => window.kiwirun?.jogo?.scene.isActive(cena), CENA_TELA_INICIAL, { timeout: LIMITE_MS });
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('Enter');
+  if (!(await esperarCena(pagina, CENA_MENU))) return [...problemas, 'Enter na Tela inicial recarregada não abriu o Menu'];
+  if (!(await textosDaCena(pagina, CENA_MENU)).includes(esperado)) problemas.push(`o Recorde "${esperado}" não sobreviveu a recarregar a página`);
+
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('Escape');
+  if (!(await esperarCena(pagina, CENA_TELA_INICIAL))) return [...problemas, 'Esc no Menu não voltou à Tela inicial'];
+  const confirmacao = textos.t('tela_inicial.recordes_zerados');
+  await pagina.keyboard.down('ShiftLeft');
+  await pagina.keyboard.down('Backspace');
+  await pagina.waitForTimeout(SEGUNDOS_ZERAR * 1000 - 1000);
+  if ((await textosDaCena(pagina, CENA_TELA_INICIAL)).includes(confirmacao) || !(await lerRecorde(pagina))) {
+    problemas.push('Shift+Backspace zerou os Recordes antes de 3 s');
+  }
+  await pagina.waitForTimeout(1000 + ESPERA_MS);
+  await pagina.keyboard.up('Backspace');
+  await pagina.keyboard.up('ShiftLeft');
+  if (!(await textosDaCena(pagina, CENA_TELA_INICIAL)).includes(confirmacao)) problemas.push(`Shift+Backspace por 3 s não mostrou "${confirmacao}"`);
+  if (await lerRecorde(pagina)) problemas.push('Shift+Backspace por 3 s não zerou o Recorde');
+  const guardados = await pagina.evaluate(() => Object.keys(localStorage).filter((chave) => chave.startsWith('kiwirun:')));
+  if (guardados.length > 0) problemas.push(`zerar deixou Recordes no localStorage: ${guardados}`);
+
+  await pagina.keyboard.press('Enter');
+  if (!(await esperarCena(pagina, CENA_MENU))) return [...problemas, 'Enter na Tela inicial não abriu o Menu depois de zerar'];
+  if (!(await textosDaCena(pagina, CENA_MENU)).includes(textos.t('menu.sem_recorde'))) problemas.push('o Menu não voltou a "—" depois de zerar');
   return problemas;
 }
 
@@ -463,6 +585,7 @@ async function verificarJogo(url) {
     if (fase.id !== 'pecuaria' || !fase.temKiwi) problemas.push(`Fase aberta: ${JSON.stringify(fase)}`);
     problemas.push(...await verificarItensECheckpoints(pagina));
     problemas.push(...await verificarPlacar(pagina));
+    problemas.push(...await verificarRecorde(pagina));
   } catch (erro) {
     problemas.push(`Pecuária não carregou pelo Menu: ${erro.message}`);
   } finally {
@@ -479,4 +602,4 @@ if (problemas.length > 0) {
   console.error(`Smoke falhou:\n- ${problemas.join('\n- ')}`);
   process.exit(1);
 }
-console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Placar e bloqueio de entrada funcionando, sem erro no console nem requisição fora da origem.');
+console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Iniciais, Placar, Recorde (recarregar e zerar) e bloqueio de entrada funcionando, sem erro no console nem requisição fora da origem.');
