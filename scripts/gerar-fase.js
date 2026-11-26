@@ -7,7 +7,8 @@
  * (o id do Item no tipo do objeto), cada `samambaia` (a chave do Fato no tipo) e cada
  * `placa` (a chave do texto no tipo e a ação na propriedade `acao`, sobre um tile de placa
  * na camada `fundo`), além das
- * áreas `fim` e `predador` (a espécie no tipo; o Predador patrulha de uma ponta à outra) e `ovelha` (a
+ * áreas `fim` e `predador` (a espécie no tipo; o Predador patrulha de uma ponta à outra, no chão
+ * ou, na espécie de plataforma alta, sobre uma plataforma) e `ovelha` (a
  * Ovelha anda de uma ponta à outra, plataforma móvel de mão única) e `esteira` (o tile de cima
  * do chão, com o sentido na propriedade `sentido`) e `guindaste` (a viga sobe e desce entre o
  * alto, no topo da área, e o baixo, na base dela). A Samambaia-prateada escondida ganha uma folhagem na camada `frente` por cima.
@@ -15,6 +16,7 @@
  * ficam sólidas na camada `colisao`, com o tileset do Porto embutido depois do Kenney.
  *
  * Recusa vãos, degraus, plataformas, pilhas de contêiner e Itens além das constantes do pulo,
+ * patrulhas de Predador que fogem do comportamento da espécie (longas demais, fora da plataforma),
  * trajetos de Ovelha e de guindaste com vão de esmagamento, esteiras sem sentido, e recusa sobrescrever
  * um `.tmj` existente sem `--force` (o arquivo pode ter sido enfeitado no Tiled).
  *
@@ -25,6 +27,7 @@ import { dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PULO, TILE } from '../src/logica/pulo.js';
 import { SENTIDOS_ESTEIRA } from '../src/logica/esteira.js';
+import { COMPORTAMENTO_PREDADOR } from '../src/logica/catalogo.js';
 import { COLUNAS, IMAGEM, NOME, QUANTIDADE, TILES, TILES_PORTO, TILESET_PORTO, UMA_MAO } from './tileset.js';
 
 const RAIZ_REPO = fileURLToPath(new URL('..', import.meta.url));
@@ -76,7 +79,8 @@ const ALTURA_LIVRE_GUINDASTE = 2;
  * @typedef {Object} PredadorNoMapa
  * @property {string} especie - Espécie de Predador do catálogo.
  * @property {number} de - Primeira coluna da patrulha.
- * @property {number} ate - Última coluna da patrulha; de `de` a `ate` o chão é plano.
+ * @property {number} ate - Última coluna da patrulha; de `de` a `ate` o chão é plano ou, na
+ *   espécie de plataforma alta, uma só plataforma cobre a patrulha.
  */
 
 /**
@@ -355,6 +359,17 @@ export function gerarMapa(descricao) {
     });
   }
   for (const { especie, de, ate } of descricao.predadores ?? []) {
+    const { patrulhaMaxima, plataformaAlta } = COMPORTAMENTO_PREDADOR[especie] ?? {};
+    if (patrulhaMaxima !== undefined && ate - de + 1 > patrulhaMaxima) {
+      throw new Error(`predador ${especie} entre as colunas ${de} e ${ate}: a patrulha da espécie tem no máximo ${patrulhaMaxima} colunas`);
+    }
+    if (plataformaAlta) {
+      const plataforma = descricao.plataformas.find(({ coluna, largura: larguraPlataforma }) => coluna <= de && ate < coluna + larguraPlataforma);
+      if (!plataforma) throw new Error(`predador ${especie} entre as colunas ${de} e ${ate}: a espécie patrulha sobre uma plataforma alta, de ponta a ponta`);
+      const linhaPlataforma = topo(plataforma.coluna) - plataforma.alturaSobreChao;
+      objetos.push({ ...areaSobreOChao('predador', especie, de, ate), y: (linhaPlataforma - 1) * TILE });
+      continue;
+    }
     if (!plano(de, ate)) throw new Error(`predador ${especie} entre as colunas ${de} e ${ate}: a patrulha pede chão plano, sem vão`);
     objetos.push(areaSobreOChao('predador', especie, de, ate));
   }
