@@ -11,8 +11,8 @@ import FONTES_FATOS from '../conteudo/fontes-fatos.js';
  */
 
 /**
- * As seções fixas dos Créditos, na ordem. Arte e som creditam só os pacotes Kenney que
- * estão versionados no repositório.
+ * As seções fixas dos Créditos, na ordem. Arte e som creditam os pacotes Kenney que estão
+ * versionados no repositório e a música, sintetizada por script do próprio projeto.
  *
  * @type {readonly SecaoCreditos[]}
  */
@@ -20,7 +20,7 @@ export const SECOES_CREDITOS = Object.freeze([
   Object.freeze({ chaveTitulo: 'creditos.grupo', chavesLinhas: Object.freeze(['creditos.grupo.apresentacao']) }),
   Object.freeze({
     chaveTitulo: 'creditos.arte_som',
-    chavesLinhas: Object.freeze(['creditos.kenney.pixel_platformer', 'creditos.kenney.digital_audio']),
+    chavesLinhas: Object.freeze(['creditos.kenney.pixel_platformer', 'creditos.kenney.digital_audio', 'creditos.musica']),
   }),
   Object.freeze({ chaveTitulo: 'creditos.codigo', chavesLinhas: Object.freeze(['creditos.phaser']) }),
 ]);

@@ -45,12 +45,16 @@ test('cada Fase com Fatos lista as suas fontes distintas, na ordem dos Fatos', (
   ]);
 });
 
-test('as seções creditam o grupo, os pacotes Kenney versionados e o Phaser, nessa ordem', () => {
+test('as seções creditam o grupo, os pacotes Kenney versionados, a música do projeto e o Phaser, nessa ordem', () => {
   assert.deepEqual(SECOES_CREDITOS.map((secao) => secao.chaveTitulo), ['creditos.grupo', 'creditos.arte_som', 'creditos.codigo']);
   const [grupo, arteSom, codigo] = SECOES_CREDITOS;
   assert.equal(DICIONARIOS.pt[grupo.chavesLinhas[0]], 'Grupo da apresentação sobre a Nova Zelândia');
-  const kenney = arteSom.chavesLinhas.map((chave) => DICIONARIOS.pt[chave]);
-  assert.deepEqual(kenney, ['Kenney — Pixel Platformer 1.2 (CC0)', 'Kenney — Digital Audio (CC0)']);
+  const arteSomPt = arteSom.chavesLinhas.map((chave) => DICIONARIOS.pt[chave]);
+  assert.deepEqual(arteSomPt, [
+    'Kenney — Pixel Platformer 1.2 (CC0)',
+    'Kenney — Digital Audio (CC0)',
+    'Música chiptune gerada por script do projeto',
+  ]);
   assert.match(DICIONARIOS.pt[codigo.chavesLinhas[0]], /^Phaser 3\.90 /);
 });
 

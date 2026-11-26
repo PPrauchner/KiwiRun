@@ -74,6 +74,7 @@ export default {
   'creditos.arte_som': 'Arte e som',
   'creditos.kenney.pixel_platformer': 'Kenney — Pixel Platformer 1.2 (CC0)',
   'creditos.kenney.digital_audio': 'Kenney — Digital Audio (CC0)',
+  'creditos.musica': 'Música chiptune gerada por script do projeto',
   'creditos.codigo': 'Código',
   'creditos.phaser': 'Phaser 3.90 (licença MIT)',
   'creditos.fatos': 'Fontes dos Fatos',
