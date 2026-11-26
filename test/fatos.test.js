@@ -64,6 +64,12 @@ test('os Fatos da Pecuária são os definitivos, sem a marca de provisório', ()
   for (const chave of pecuaria.chavesFato) assert.equal(FONTES_FATOS[chave].provisorio, false, `${chave} ainda provisório`);
 });
 
+test('os Fatos do Porto são os definitivos, sem a marca de provisório', () => {
+  const porto = MUNDOS.flatMap((mundo) => mundo.fases).find((fase) => fase.id === 'porto');
+
+  for (const chave of porto.chavesFato) assert.equal(FONTES_FATOS[chave].provisorio, false, `${chave} ainda provisório`);
+});
+
 test('todo Fato referenciado tem fonte registrada', () => {
   for (const chave of CHAVES) {
     const registro = FONTES_FATOS[chave];
