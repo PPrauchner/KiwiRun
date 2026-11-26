@@ -1,6 +1,6 @@
 /**
  * @file Gera os PNGs próprios na grade de 18×18: o sprite do Kiwi (faixa de quadros),
- * um sprite por Item, o da Samambaia-prateada, um por espécie de Predador, o da Ovelha e os ícones de botão das Placas, desenhados por código numa paleta de pixel art. Os tiles vêm do Kenney Pixel
+ * um sprite por Item, o da Samambaia-prateada, um por espécie de Predador, o da Ovelha, os ícones de botão das Placas e o do Silêncio (som cortado), desenhados por código numa paleta de pixel art. Os tiles vêm do Kenney Pixel
  * Platformer (CC0). Sem dependências além do Node.
  *
  * Uso: `npm run gerar:sprites`.
@@ -302,6 +302,40 @@ function desenhoBotaoA(x, y) {
 /** Desenho de cada ícone de botão, pelo nome do quadro. */
 const DESENHOS_BOTOES = Object.freeze({ espaco: desenhoTeclaEspaco, a: desenhoBotaoA });
 
+export const IMAGEM_SILENCIO = 'assets/sprites/silencio.png';
+
+/** Paleta do ícone do Silêncio: alto-falante claro de contorno escuro e um X vermelho. */
+const COR_SILENCIO = Object.freeze({
+  contorno: 0x222034,
+  alto: 0xd8d8d8,
+  corte: 0xac3232,
+});
+
+/**
+ * @param {number} x
+ * @param {number} y
+ * @returns {boolean} Se o pixel é do alto-falante: a caixa e o cone que se abre à direita.
+ */
+function noAltoFalante(x, y) {
+  const caixa = x >= 2 && x <= 5 && y >= 6 && y <= 11;
+  const cone = x >= 6 && x <= 10 && y >= 11 - x && y <= x + 6;
+  return caixa || cone;
+}
+
+/**
+ * Som cortado: o alto-falante com um X vermelho à direita, onde sairiam as ondas.
+ *
+ * @type {Desenho}
+ */
+function desenhoSilencio(x, y) {
+  if (noAltoFalante(x, y)) {
+    const borda = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => !noAltoFalante(x + dx, y + dy));
+    return borda ? COR_SILENCIO.contorno : COR_SILENCIO.alto;
+  }
+  const naFaixa = x >= 12 && x <= 16 && y >= 6 && y <= 10;
+  return naFaixa && (x - 12 === y - 6 || x - 12 === 10 - y) ? COR_SILENCIO.corte : null;
+}
+
 /**
  * Junta desenhos 18×18 numa grade, da esquerda para a direita e de cima para baixo.
  *
@@ -347,4 +381,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   console.log(`Gerado ${IMAGEM_OVELHA}`);
   await gravar(IMAGEM_BOTOES, montarGrade(BOTOES.map((botao) => DESENHOS_BOTOES[botao]), BOTOES.length));
   console.log(`Gerado ${IMAGEM_BOTOES}`);
+  await gravar(IMAGEM_SILENCIO, montarGrade([desenhoSilencio], 1));
+  console.log(`Gerado ${IMAGEM_SILENCIO}`);
 }
