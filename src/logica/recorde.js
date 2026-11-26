@@ -67,17 +67,21 @@ function interpretar(texto) {
  * @returns {Recordes} Os Recordes.
  */
 export function criarRecordes(armazenamento) {
-  /** Cópia do que foi gravado nesta página, lida quando o armazenamento falha. */
+  /**
+   * Cópia do que foi gravado nesta página, lida antes do armazenamento: ela vale mesmo
+   * quando o armazenamento lê mas recusa gravar (cota cheia).
+   */
   const memoria = new Map();
 
   /** @param {string} chave @returns {string | null} */
   function lerTexto(chave) {
+    if (memoria.has(chave)) return memoria.get(chave);
     try {
       if (armazenamento) return armazenamento.getItem(chave);
     } catch {
-      // Indisponível: vale a cópia em memória.
+      // Indisponível: não há nada além da memória.
     }
-    return memoria.get(chave) ?? null;
+    return null;
   }
 
   /** @param {string} faseId @param {Gravado} gravado */

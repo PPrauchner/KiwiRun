@@ -104,6 +104,19 @@ test('sem armazenamento, ou com ele recusando tudo, o Recorde vale só enquanto 
   }
 });
 
+test('com o armazenamento lendo mas recusando gravar (cota cheia), o Recorde vale em memória', () => {
+  const armazenamento = armazenamentoEmMemoria();
+  armazenamento.setItem = () => {
+    throw new Error('QuotaExceededError');
+  };
+  const recordes = criarRecordes(armazenamento);
+
+  assert.equal(recordes.registrar('pecuaria', 42.3), true);
+  recordes.gravarIniciais('pecuaria', 'ABC');
+  assert.deepEqual(recordes.ler('pecuaria'), { segundos: 42.3, iniciais: 'ABC' });
+  assert.equal(recordes.registrar('pecuaria', 50), false);
+});
+
 test('o Recorde sobrevive a recriar os Recordes sobre o mesmo armazenamento, sob a chave da versão', () => {
   const armazenamento = armazenamentoEmMemoria();
   criarRecordes(armazenamento).registrar('pecuaria', 42.3);
