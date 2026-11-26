@@ -1,6 +1,7 @@
 /**
  * @file Smoke no navegador: abre o jogo servido localmente no Chromium (Playwright),
- * espera a Tela inicial, aperta uma tecla, confere o Menu (cursor na Pecuária, Mundos e
+ * espera a Tela inicial, troca o idioma para EN (o Menu sai em inglês, nada vai ao
+ * `localStorage` e recarregar volta ao PT), aperta uma tecla, confere o Menu (cursor na Pecuária, Mundos e
  * Fases em breve marcados, Esc de volta à Tela inicial), escolhe a Pecuária, espera ela
  * carregada e confere o HUD,
  * a Fase parada até o primeiro input, a coleta de um Item, as Samambaias-prateadas e a
@@ -18,7 +19,6 @@ import { chromium } from 'playwright';
 import { iniciarServidor } from './servidor.js';
 import { criarTextos } from '../src/logica/textos.js';
 import { VERSAO } from '../src/logica/versao.js';
-import { formatarTempo } from '../src/logica/cronometro.js';
 import { DURACAO_FATO } from '../src/logica/fila-fatos.js';
 import { chaveNomeItem, chaveNomePredador } from '../src/logica/catalogo.js';
 import { SEGUNDOS_INVULNERAVEL } from '../src/logica/captura.js';
@@ -93,7 +93,7 @@ async function verificarItensECheckpoints(pagina) {
   const antes = await estadoDaFase(pagina);
   await pagina.waitForTimeout(ESPERA_MS);
   const parado = await estadoDaFase(pagina);
-  if (!parado.textos.includes(formatarTempo(0))) problemas.push(`HUD sem o tempo zerado: ${parado.textos}`);
+  if (!parado.textos.includes(criarTextos().tempo(0))) problemas.push(`HUD sem o tempo zerado: ${parado.textos}`);
   if (!parado.textos.includes(`0/${itens.length}`)) problemas.push(`HUD sem "0/${itens.length}": ${parado.textos}`);
   if (parado.y !== antes.y || parado.segundos !== 0) problemas.push('a Fase se mexeu antes do primeiro input');
   if (JSON.stringify(parado.predadores) !== JSON.stringify(antes.predadores)) problemas.push('um Predador se mexeu antes do primeiro input');
@@ -206,6 +206,59 @@ function esperarCena(pagina, cena) {
 }
 
 /**
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ * @param {string} cena - A chave da cena.
+ * @returns {Promise<string[]>} Os textos visíveis da cena.
+ */
+function textosDaCena(pagina, cena) {
+  return pagina.evaluate((chave) => window.kiwirun.jogo.scene.getScene(chave).children.list
+    .filter((objeto) => objeto.type === 'BitmapText' && objeto.visible)
+    .map((objeto) => objeto.text), cena);
+}
+
+/**
+ * Na Tela inicial, a seta para a direita troca para EN sem sair dela e o Menu abre em
+ * inglês; nada de idioma vai ao `localStorage`, e recarregar a página volta ao PT. Termina
+ * na Tela inicial recarregada.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, na Tela inicial.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarIdioma(pagina) {
+  const problemas = [];
+  const textos = criarTextos();
+  const armazenado = () => pagina.evaluate(() => JSON.stringify(Object.entries(localStorage)));
+  const antes = await armazenado();
+
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('ArrowRight');
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  textos.definirIdioma('en');
+  if (!(await pagina.evaluate((cena) => window.kiwirun.jogo.scene.isActive(cena), CENA_TELA_INICIAL))) {
+    return ['a seta para a direita saiu da Tela inicial'];
+  }
+  const telaEn = await textosDaCena(pagina, CENA_TELA_INICIAL);
+  for (const chave of ['tela_inicial.aperte', 'tela_inicial.saudacao']) {
+    if (!telaEn.includes(textos.t(chave))) problemas.push(`Tela inicial em EN sem "${textos.t(chave)}"`);
+  }
+
+  await pagina.keyboard.press('Enter');
+  if (!(await esperarCena(pagina, CENA_MENU))) return [...problemas, 'Enter na Tela inicial em EN não abriu o Menu'];
+  const menuEn = await textosDaCena(pagina, CENA_MENU);
+  for (const chave of ['menu.titulo', 'mundo.economia-tecnologia', 'fase.pecuaria', 'menu.voltar']) {
+    if (!menuEn.includes(textos.t(chave))) problemas.push(`Menu em EN sem "${textos.t(chave)}"`);
+  }
+  if ((await armazenado()) !== antes) problemas.push(`trocar o idioma gravou no localStorage: ${await armazenado()}`);
+
+  await pagina.reload();
+  await pagina.waitForFunction((cena) => window.kiwirun?.jogo?.scene.isActive(cena), CENA_TELA_INICIAL, { timeout: LIMITE_MS });
+  const recarregada = await textosDaCena(pagina, CENA_TELA_INICIAL);
+  const aperteEmPt = criarTextos().t('tela_inicial.aperte');
+  if (!recarregada.includes(aperteEmPt)) problemas.push(`recarregar não voltou ao PT: ${recarregada}`);
+  return problemas;
+}
+
+/**
  * Da Tela inicial, confere o Menu: o título, a Pecuária sob o cursor com o Recorde vazio, os
  * Mundos e Fases em breve marcados, e que Esc volta à Tela inicial. Termina no Menu.
  *
@@ -306,7 +359,7 @@ async function verificarPlacar(pagina) {
   for (const esperado of esperados) {
     if (!placar.textos.includes(esperado)) problemas.push(`Placar sem o texto "${esperado}"`);
   }
-  if (!placar.textos.some((texto) => /^0:\d\d,\d$/.test(texto))) problemas.push('Placar sem tempo com vírgula decimal em PT');
+  if (!placar.textos.some((texto) => /^\d+,\d s$/.test(texto))) problemas.push('Placar sem tempo "N,N s" em PT');
   if (placar.opcoes.includes('proxima')) problemas.push('Placar oferece "Próxima Fase" com o Porto em breve');
   if (placar.opcao !== 'jogar_de_novo') problemas.push(`Placar abriu com o cursor em "${placar.opcao}"`);
 
@@ -394,6 +447,7 @@ async function verificarJogo(url) {
   }
 
   try {
+    problemas.push(...await verificarIdioma(pagina));
     problemas.push(...await verificarMenu(pagina));
     await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
     await pagina.keyboard.press('Enter');
@@ -425,4 +479,4 @@ if (problemas.length > 0) {
   console.error(`Smoke falhou:\n- ${problemas.join('\n- ')}`);
   process.exit(1);
 }
-console.log('Smoke ok: Tela inicial, Menu e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Placar e bloqueio de entrada funcionando, sem erro no console nem requisição fora da origem.');
+console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Placar e bloqueio de entrada funcionando, sem erro no console nem requisição fora da origem.');
