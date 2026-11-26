@@ -228,6 +228,7 @@ export class Fase extends Phaser.Scene {
   /** Abre a Pausa por cima e congela a Fase, se ela estiver correndo e ainda não terminou. */
   abrirPausa() {
     if (this.venceu || !this.scene.isActive()) return;
+    this.inatividade.esconder();
     this.scene.launch('pausa', { faseId: this.fase.id });
     this.scene.pause();
   }

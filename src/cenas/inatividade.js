@@ -23,6 +23,8 @@ const CENA_TELA_INICIAL = 'tela-inicial';
  * @typedef {Object} VigiaInatividade
  * @property {(segundosSemInput: number) => boolean} atualizar - Mostra ou esconde o aviso
  *   e diz se a Volta aconteceu neste quadro (a cena não deve seguir com o quadro).
+ * @property {() => void} esconder - Esconde o aviso fora do quadro (a Pausa aberta pela
+ *   perda de foco), para ele não ficar congelado com a cena.
  */
 
 /**
@@ -50,6 +52,12 @@ export function criarVigiaInatividade(cena, { comAviso = true, aoVoltar } = {}) 
     cena.scene.start(CENA_TELA_INICIAL);
   }
 
+  /** @param {boolean} mostrar */
+  function exibir(mostrar) {
+    fundo.setVisible(mostrar);
+    aviso.setVisible(mostrar);
+  }
+
   return {
     atualizar(segundosSemInput) {
       const { contagem, volta } = avaliarInatividade(segundosSemInput, cena.registry.get('temposInatividade'));
@@ -59,9 +67,11 @@ export function criarVigiaInatividade(cena, { comAviso = true, aoVoltar } = {}) 
       }
       const mostrar = comAviso && contagem !== null;
       if (mostrar) aviso.setText(textos.t('inatividade.aviso', { segundos: String(contagem) }));
-      fundo.setVisible(mostrar);
-      aviso.setVisible(mostrar);
+      exibir(mostrar);
       return false;
+    },
+    esconder() {
+      exibir(false);
     },
   };
 }
