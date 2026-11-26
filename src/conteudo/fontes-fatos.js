@@ -15,7 +15,7 @@ const ANUNCIO_HALTER = 'Anúncio da Série E da Halter (mar/2026)';
 
 /** @type {Readonly<Record<string, FonteFato>>} */
 export default Object.freeze({
-  'fato.pecuaria.1': { fonte: ANUNCIO_HALTER, provisorio: true },
-  'fato.pecuaria.2': { fonte: ANUNCIO_HALTER, provisorio: true },
-  'fato.pecuaria.3': { fonte: ANUNCIO_HALTER, provisorio: true },
+  'fato.pecuaria.1': { fonte: ANUNCIO_HALTER, provisorio: false },
+  'fato.pecuaria.2': { fonte: ANUNCIO_HALTER, provisorio: false },
+  'fato.pecuaria.3': { fonte: ANUNCIO_HALTER, provisorio: false },
 });
