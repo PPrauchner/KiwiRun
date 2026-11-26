@@ -5,9 +5,11 @@
  * carregada e confere o HUD,
  * a Fase parada até o primeiro input, a coleta de um Item, as Samambaias-prateadas e a
  * Fila de Fatos, a volta ao Checkpoint, e os Predadores: Captura, contato lateral e a
- * invulnerabilidade depois de voltar, e o bloqueio de entrada: o pulo segurado ao tocar o fim
- * não abre a Fase de novo pelo Menu. Falha também se houver erro no console ou
- * requisição fora da origem.
+ * invulnerabilidade depois de voltar, o Placar ao tocar o fim (Tempo final, Itens por tipo,
+ * Capturas por espécie, Fatos e "???", sem "Próxima Fase"), o bloqueio de entrada (o pulo
+ * segurado ao tocar o fim não escolhe nada no Placar, e o pulo segurado ao entrar por "Jogar
+ * de novo" não faz o Kiwi pular), a Fase recomeçada do zero e Esc do Placar ao Menu. Falha
+ * também se houver erro no console ou requisição fora da origem.
  *
  * Uso: `npm run smoke`. Sai com código 1 e a lista de problemas quando algo falha.
  */
@@ -18,7 +20,7 @@ import { criarTextos } from '../src/logica/textos.js';
 import { VERSAO } from '../src/logica/versao.js';
 import { formatarTempo } from '../src/logica/cronometro.js';
 import { DURACAO_FATO } from '../src/logica/fila-fatos.js';
-import { chaveNomePredador } from '../src/logica/catalogo.js';
+import { chaveNomeItem, chaveNomePredador } from '../src/logica/catalogo.js';
 import { SEGUNDOS_INVULNERAVEL } from '../src/logica/captura.js';
 import { SEGUNDOS_BLOQUEIO } from '../src/logica/input.js';
 
@@ -26,6 +28,7 @@ const LIMITE_MS = 15_000;
 const CENA_TELA_INICIAL = 'tela-inicial';
 const CENA_MENU = 'menu';
 const CENA_FASE = 'fase';
+const CENA_PLACAR = 'placar';
 const MAPA_PECUARIA = new URL('../assets/mapas/pecuaria.tmj', import.meta.url);
 /** Quanto esperar para ver se algo se mexe (ou não), em ms. */
 const ESPERA_MS = 400;
@@ -239,30 +242,97 @@ async function verificarMenu(pagina) {
 }
 
 /**
- * Segura o pulo, leva o Kiwi ao fim da Fase e confere que, no Menu, o pulo que continua
- * segurado não abre a Fase de novo; soltar e apertar abre.
+ * Leva o Kiwi ao fim da Fase.
  *
- * @param {import('playwright').Page} pagina - A página do jogo, com a Fase andando.
- * @returns {Promise<string[]>} Os problemas encontrados.
+ * @param {import('playwright').Page} pagina - A página do jogo, com a Fase ativa.
+ * @returns {Promise<void>}
  */
-async function verificarPuloSeguradoNoFim(pagina) {
-  const problemas = [];
+async function levarAoFim(pagina) {
   const [fim] = await objetosDaPecuaria('fim');
-  await pagina.keyboard.down('Space');
   await pagina.evaluate(([cena, x, y]) => {
     window.kiwirun.jogo.scene.getScene(cena).kiwi.body.reset(x, y);
   }, [CENA_FASE, fim.x + fim.width / 2, fim.y + fim.height / 2]);
-  if (!(await esperarCena(pagina, CENA_MENU))) problemas.push('tocar o fim não voltou ao Menu');
+}
+
+/**
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ * @returns {Promise<{ textos: string[], opcoes: string[], opcao: string }>} Os textos e as
+ *   opções do Placar.
+ */
+function estadoDoPlacar(pagina) {
+  return pagina.evaluate((cena) => {
+    const placar = window.kiwirun.jogo.scene.getScene(cena);
+    const textos = placar.children.list.filter((objeto) => objeto.type === 'BitmapText').map((objeto) => objeto.text);
+    return { textos, opcoes: [...placar.menu.opcoes], opcao: placar.menu.opcao };
+  }, CENA_PLACAR);
+}
+
+/**
+ * Segura o pulo e leva o Kiwi ao fim: confere o Placar e que o pulo segurado não escolhe nada
+ * nele. Soltar e apertar (segurando) "Jogar de novo" recomeça a Fase do zero sem o Kiwi pular;
+ * no fim seguinte, Esc vai do Placar ao Menu.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, com a Fase andando, depois
+ *   de um Item, duas Samambaias-prateadas e uma Captura.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarPlacar(pagina) {
+  const problemas = [];
+  const textos = criarTextos();
+  const itens = await objetosDaPecuaria('item');
+  const predadores = await objetosDaPecuaria('predador');
+  await pagina.keyboard.down('Space');
+  await levarAoFim(pagina);
+  if (!(await esperarCena(pagina, CENA_PLACAR))) return ['tocar o fim não abriu o Placar'];
+
   await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS + ESPERA_MS);
-  if (!(await pagina.evaluate((cena) => window.kiwirun.jogo.scene.isActive(cena), CENA_MENU))) {
-    problemas.push('o pulo segurado do fim da Fase abriu a Fase de novo pelo Menu');
+  if (!(await pagina.evaluate((cena) => window.kiwirun.jogo.scene.isActive(cena), CENA_PLACAR))) {
+    return ['o pulo segurado do fim da Fase escolheu uma opção do Placar'];
   }
+  const placar = await estadoDoPlacar(pagina);
+  const tipoDoPrimeiro = itens[0].type;
+  const totalDoTipo = itens.filter((item) => item.type === tipoDoPrimeiro).length;
+  // O passeio do smoke pode pegar mais de um Item no caminho: confere só o tipo e o total.
+  const nomeDoTipo = textos.t(chaveNomeItem(tipoDoPrimeiro));
+  if (!placar.textos.some((texto) => texto.startsWith(`${nomeDoTipo} `) && texto.endsWith(`/${totalDoTipo}`) && !texto.startsWith(`${nomeDoTipo} 0/`))) {
+    problemas.push(`Placar sem "${nomeDoTipo} N/${totalDoTipo}" com o Item coletado`);
+  }
+  const esperados = [
+    'placar.titulo', 'placar.tempo_gasto', 'placar.desconto_itens', 'placar.desconto_capturas',
+    'placar.desconto_samambaias', 'placar.tempo_final', 'placar.fatos', 'placar.fato_faltando', 'placar.convite',
+    'placar.jogar_de_novo', 'placar.menu',
+  ].map((chave) => textos.t(chave));
+  esperados.push(textos.t('placar.capturas_especie', { nome: textos.t(chaveNomePredador(predadores[0].type)), quantidade: '1' }));
+  for (const esperado of esperados) {
+    if (!placar.textos.includes(esperado)) problemas.push(`Placar sem o texto "${esperado}"`);
+  }
+  if (!placar.textos.some((texto) => /^0:\d\d,\d$/.test(texto))) problemas.push('Placar sem tempo com vírgula decimal em PT');
+  if (placar.opcoes.includes('proxima')) problemas.push('Placar oferece "Próxima Fase" com o Porto em breve');
+  if (placar.opcao !== 'jogar_de_novo') problemas.push(`Placar abriu com o cursor em "${placar.opcao}"`);
+
+  // Jogar de novo, com o pulo segurado ao entrar na Fase.
   await pagina.keyboard.up('Space');
-  // O Input lê por quadro: ele precisa ver o pulo solto antes do aperto novo.
   await pagina.waitForTimeout(ESPERA_MS / 4);
-  await pagina.keyboard.press('Space');
-  await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.isActive(cena), CENA_FASE, { timeout: 2000 })
-    .catch(() => problemas.push('soltar e apertar Espaço no Menu não abriu a Pecuária'));
+  await pagina.keyboard.down('Space');
+  if (!(await esperarCena(pagina, CENA_FASE))) return [...problemas, '"Jogar de novo" não reabriu a Fase'];
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS + ESPERA_MS);
+  const deNovo = await estadoDaFase(pagina);
+  await pagina.keyboard.up('Space');
+  if (deNovo.segundos !== 0 || deNovo.vy !== 0) problemas.push('o pulo segurado do Placar fez o Kiwi pular na Fase');
+  if (deNovo.capturas !== 0 || deNovo.fatosEncontrados !== 0 || deNovo.predadores.length !== predadores.length) {
+    problemas.push('"Jogar de novo" não recomeçou a Fase do zero');
+  }
+  if (!deNovo.textos.includes(`0/${itens.length}`)) problemas.push('"Jogar de novo" não zerou os Itens');
+
+  // A Fase fica parada até o primeiro mover: anda um pouco antes de ir ao fim.
+  await pagina.keyboard.down('ArrowRight');
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  await pagina.keyboard.up('ArrowRight');
+  await levarAoFim(pagina);
+  if (!(await esperarCena(pagina, CENA_PLACAR))) return [...problemas, 'tocar o fim de novo não abriu o Placar'];
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('Escape');
+  if (!(await esperarCena(pagina, CENA_MENU))) problemas.push('Esc no Placar não foi ao Menu');
   return problemas;
 }
 
@@ -338,7 +408,7 @@ async function verificarJogo(url) {
     }, CENA_FASE);
     if (fase.id !== 'pecuaria' || !fase.temKiwi) problemas.push(`Fase aberta: ${JSON.stringify(fase)}`);
     problemas.push(...await verificarItensECheckpoints(pagina));
-    problemas.push(...await verificarPuloSeguradoNoFim(pagina));
+    problemas.push(...await verificarPlacar(pagina));
   } catch (erro) {
     problemas.push(`Pecuária não carregou pelo Menu: ${erro.message}`);
   } finally {
@@ -355,4 +425,4 @@ if (problemas.length > 0) {
   console.error(`Smoke falhou:\n- ${problemas.join('\n- ')}`);
   process.exit(1);
 }
-console.log('Smoke ok: Tela inicial, Menu e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores e bloqueio de entrada funcionando, sem erro no console nem requisição fora da origem.');
+console.log('Smoke ok: Tela inicial, Menu e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Placar e bloqueio de entrada funcionando, sem erro no console nem requisição fora da origem.');
