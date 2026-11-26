@@ -85,3 +85,10 @@ test('o ícone do Silêncio (som cortado) tem seu sprite 18×18 gerado', async (
 
   assert.deepEqual([largura, altura], [TILE, TILE]);
 });
+
+test('os Itens do Porto, kiwifruta e caixa de exportação, têm sprite 18×18 gerado', async () => {
+  for (const item of ['kiwifruta', 'caixa']) {
+    const { largura, altura } = await dimensoes(imagemItem(item));
+    assert.deepEqual([largura, altura], [TILE, TILE], item);
+  }
+});
