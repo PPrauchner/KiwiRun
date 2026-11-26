@@ -29,6 +29,8 @@ export default {
   'predador.rato': 'Rat',
   'item.la': 'Wool',
   'item.leite': 'Milk',
+  'item.kiwifruta': 'Kiwifruit',
+  'item.caixa': 'Export crate',
   'numero.separador_decimal': '.',
   'placar.titulo': 'Results',
   'placar.novo_recorde': 'New record!',
