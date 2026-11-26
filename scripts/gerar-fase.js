@@ -9,12 +9,13 @@
  * na camada `fundo`), além das
  * áreas `fim` e `predador` (a espécie no tipo; o Predador patrulha de uma ponta à outra) e `ovelha` (a
  * Ovelha anda de uma ponta à outra, plataforma móvel de mão única) e `esteira` (o tile de cima
- * do chão, com o sentido na propriedade `sentido`). A Samambaia-prateada escondida ganha uma folhagem na camada `frente` por cima.
+ * do chão, com o sentido na propriedade `sentido`) e `guindaste` (a viga sobe e desce entre o
+ * alto, no topo da área, e o baixo, na base dela). A Samambaia-prateada escondida ganha uma folhagem na camada `frente` por cima.
  * No piso de cais, o chão é concreto, o mar aparece no fundo dos vãos e as pilhas de contêiner
  * ficam sólidas na camada `colisao`, com o tileset do Porto embutido depois do Kenney.
  *
  * Recusa vãos, degraus, plataformas, pilhas de contêiner e Itens além das constantes do pulo,
- * trajetos de Ovelha com vão de esmagamento, esteiras sem sentido, e recusa sobrescrever
+ * trajetos de Ovelha e de guindaste com vão de esmagamento, esteiras sem sentido, e recusa sobrescrever
  * um `.tmj` existente sem `--force` (o arquivo pode ter sido enfeitado no Tiled).
  *
  * Uso: `npm run gerar:fase -- <id> [--force] [--saida <arquivo>]`.
@@ -41,6 +42,8 @@ const RECUO_FIM = 3;
 const ALTURA_FIM = 3;
 /** Tiles acima do trajeto da Ovelha que ficam livres: a Ovelha e o Kiwi montado nela. */
 const ALTURA_LIVRE_OVELHA = 2;
+/** Tiles acima da viga do guindaste, no alto, que ficam livres para o Kiwi montado nela. */
+const ALTURA_LIVRE_GUINDASTE = 2;
 
 /**
  * @typedef {{ chao: number, altura: number } | { vao: number }} Trecho
@@ -105,12 +108,22 @@ const ALTURA_LIVRE_OVELHA = 2;
  */
 
 /**
+ * @typedef {Object} GuindasteNoMapa
+ * @property {number} coluna - Primeira coluna da viga; embaixo dela o chão é plano.
+ * @property {number} largura - Em tiles.
+ * @property {number} baixo - Tiles entre o chão e o topo da viga no ponto mais baixo; o pulo
+ *   alcança.
+ * @property {number} alto - Tiles entre o chão e o topo da viga no ponto mais alto.
+ */
+
+/**
  * @typedef {Object} DescricaoFase
  * @property {number} altura - Altura do mapa, em tiles.
  * @property {'pasto' | 'cais'} [piso] - O chão: grama e terra (o padrão) ou o concreto do
  *   cais, com o mar no fundo dos vãos e o tileset do Porto embutido.
  * @property {ConteineresNoMapa[]} [conteineres] - Pilhas sólidas de contêineres sobre o chão.
  * @property {EsteiraNoMapa[]} [esteiras] - As esteiras e seus sentidos.
+ * @property {GuindasteNoMapa[]} [guindastes] - Os guindastes e seus trajetos.
  * @property {Trecho[]} trechos - Da esquerda para a direita; o primeiro e o último são chão.
  * @property {Plataforma[]} plataformas - Plataformas de mão única.
  * @property {ItemNoMapa[]} [itens] - Itens a coletar.
@@ -357,6 +370,32 @@ export function gerarMapa(descricao) {
       }
     }
     objetos.push(areaSobreOChao('ovelha', '', de, ate));
+  }
+  for (const { coluna, largura: larguraViga, baixo, alto } of descricao.guindastes ?? []) {
+    const ultima = coluna + larguraViga - 1;
+    if (!plano(coluna, ultima)) throw new Error(`guindaste entre as colunas ${coluna} e ${ultima}: o trajeto pede chão plano, sem vão`);
+    if (baixo < 1 || baixo > PULO.segurado.altura) {
+      throw new Error(`guindaste na coluna ${coluna} desce a ${baixo} tiles do chão: o Kiwi sobe nele de 1 a ${PULO.segurado.altura}`);
+    }
+    if (alto <= baixo) throw new Error(`guindaste na coluna ${coluna} não sobe: vai de ${baixo} a ${alto} tiles do chão`);
+    // A viga varre as suas colunas da linha mais baixa à mais alta, com o Kiwi em cima dela; no
+    // alto, nada sólido sobre o Kiwi nem nas colunas vizinhas, para ele nunca ser prensado.
+    const linhaAlta = topo(coluna) - alto;
+    const livre = (de, ate, linhaDe, linhaAte) => {
+      for (let col = Math.max(0, de); col <= Math.min(largura - 1, ate); col += 1) {
+        for (let linha = linhaDe; linha <= linhaAte; linha += 1) {
+          if (linha < 0 || colisao.camada.data[linha * largura + col] !== 0) {
+            throw new Error(`guindaste na coluna ${coluna}: algo sólido na coluna ${col}, linha ${linha}, faz vão de esmagamento`);
+          }
+        }
+      }
+    };
+    livre(coluna, ultima, linhaAlta - ALTURA_LIVRE_GUINDASTE, topo(coluna) - baixo);
+    livre(coluna - 1, ultima + 1, linhaAlta - ALTURA_LIVRE_GUINDASTE, linhaAlta - 1);
+    objetos.push({
+      height: (alto - baixo + 1) * TILE, name: 'guindaste', rotation: 0, type: '', visible: true,
+      width: larguraViga * TILE, x: coluna * TILE, y: linhaAlta * TILE,
+    });
   }
   for (const { de, ate, sentido } of descricao.esteiras ?? []) {
     if (!plano(de, ate)) throw new Error(`esteira entre as colunas ${de} e ${ate}: a esteira pede chão plano, sem vão`);
