@@ -14,6 +14,8 @@
  * @property {string[]} itens - Ids dos Itens do tema.
  * @property {string[]} chavesFato - Chaves dos Fatos revelados pelas Samambaias-prateadas.
  * @property {number | null} tempoReferencia - Tempo de referência, em segundos.
+ * @property {number | null} andamento - Andamento da música na Fase, em batidas por minuto;
+ *   `null` toca o andamento base.
  */
 
 /**
@@ -31,7 +33,7 @@
  * @returns {Fase} A Fase em breve.
  */
 function faseEmBreve(id) {
-  return { id, chaveNome: `fase.${id}`, emBreve: true, mapa: null, itens: [], chavesFato: [], tempoReferencia: null };
+  return { id, chaveNome: `fase.${id}`, emBreve: true, mapa: null, itens: [], chavesFato: [], tempoReferencia: null, andamento: null };
 }
 
 /**
@@ -65,6 +67,8 @@ export const MUNDOS = Object.freeze([
         // Provisório até o playtest, pelo comprimento do percurso: 92 tiles andando dão
         // ~12 s; com pulos, Capturas e a volta à Samambaia-prateada escondida, ~30 s.
         tempoReferencia: 30,
+        // Mais rápido que o andamento base das telas: a Fase pede pressa.
+        andamento: 140,
       },
       faseEmBreve('porto'),
       faseEmBreve('foguete'),
