@@ -20,10 +20,16 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PULO, TILE } from '../src/logica/pulo.js';
-import { COLUNAS, IMAGEM, NOME, QUANTIDADE, TILES, UMA_MAO } from './tileset.js';
+import { COLUNAS, IMAGEM, NOME, QUANTIDADE, TILES, TILES_PORTO, TILESET_PORTO, UMA_MAO } from './tileset.js';
 
 const RAIZ_REPO = fileURLToPath(new URL('..', import.meta.url));
 const PRIMEIRO_GID = 1;
+/** O tileset do Porto vem logo depois do Kenney: seus tiles são contados a partir daqui. */
+const INICIO_PORTO = QUANTIDADE;
+/** Linhas de mar no fundo de cada vão do cais. */
+const LINHAS_MAR = 2;
+/** Contêineres da pilha, alternados por coluna e andar. */
+const CORES_CONTEINER = Object.freeze([TILES_PORTO.conteinerVermelho, TILES_PORTO.conteinerAzul, TILES_PORTO.conteinerVerde]);
 /** Colunas entre o começo do primeiro chão e o início do Kiwi. */
 const COLUNA_INICIO = 2;
 /** Colunas entre o fim do último chão e a bandeira de chegada. */
@@ -81,8 +87,18 @@ const ALTURA_LIVRE_OVELHA = 2;
  */
 
 /**
+ * @typedef {Object} ConteineresNoMapa
+ * @property {number} coluna - Primeira coluna da pilha; de `coluna` em diante o chão é plano.
+ * @property {number} largura - Em tiles.
+ * @property {number} altura - Contêineres empilhados sobre o chão; o pulo precisa vencê-los.
+ */
+
+/**
  * @typedef {Object} DescricaoFase
  * @property {number} altura - Altura do mapa, em tiles.
+ * @property {'pasto' | 'cais'} [piso] - O chão: grama e terra (o padrão) ou o concreto do
+ *   cais, com o mar no fundo dos vãos e o tileset do Porto embutido.
+ * @property {ConteineresNoMapa[]} [conteineres] - Pilhas sólidas de contêineres sobre o chão.
  * @property {Trecho[]} trechos - Da esquerda para a direita; o primeiro e o último são chão.
  * @property {Plataforma[]} plataformas - Plataformas de mão única.
  * @property {ItemNoMapa[]} [itens] - Itens a coletar.
@@ -166,26 +182,43 @@ function camadaDeTiles(id, nome, largura, altura) {
 }
 
 /**
- * Monta o tileset embutido, com a imagem relativa ao `.tmj` em `assets/mapas/`.
+ * Monta um tileset embutido, com a imagem relativa ao `.tmj` em `assets/mapas/`.
  *
+ * @param {{ nome: string, imagem: string, colunas: number, quantidade: number, firstgid: number }} tileset
+ *   - O PNG, a grade e o primeiro gid do tileset.
  * @returns {object} O tileset no formato Tiled.
  */
-function tilesetEmbutido() {
-  const linhas = Math.ceil(QUANTIDADE / COLUNAS);
+function tilesetEmbutido({ nome, imagem, colunas, quantidade, firstgid }) {
+  const linhas = Math.ceil(quantidade / colunas);
   return {
-    columns: COLUNAS,
-    firstgid: PRIMEIRO_GID,
-    image: relative('assets/mapas', IMAGEM).replaceAll('\\', '/'),
+    columns: colunas,
+    firstgid,
+    image: relative('assets/mapas', imagem).replaceAll('\\', '/'),
     imageheight: linhas * TILE,
-    imagewidth: COLUNAS * TILE,
+    imagewidth: colunas * TILE,
     margin: 0,
-    name: NOME,
+    name: nome,
     spacing: 0,
-    tilecount: QUANTIDADE,
+    tilecount: quantidade,
     tileheight: TILE,
     tilewidth: TILE,
+  };
+}
+
+/**
+ * Os tilesets embutidos no mapa: o Kenney, com as plataformas de mão única, e, no cais, o do
+ * Porto logo depois dele.
+ *
+ * @param {boolean} comPorto - Se o mapa usa o tileset do Porto.
+ * @returns {object[]} Os tilesets no formato Tiled.
+ */
+function tilesetsEmbutidos(comPorto) {
+  const kenney = {
+    ...tilesetEmbutido({ nome: NOME, imagem: IMAGEM, colunas: COLUNAS, quantidade: QUANTIDADE, firstgid: PRIMEIRO_GID }),
     tiles: UMA_MAO.map((id) => ({ id, properties: [{ name: 'umaMao', type: 'bool', value: true }] })),
   };
+  if (!comPorto) return [kenney];
+  return [kenney, tilesetEmbutido({ ...TILESET_PORTO, firstgid: PRIMEIRO_GID + INICIO_PORTO })];
 }
 
 /**
@@ -203,12 +236,22 @@ export function gerarMapa(descricao) {
   const colisao = camadaDeTiles(2, 'colisao', largura, altura);
   const frente = camadaDeTiles(3, 'frente', largura, altura);
   const topo = (coluna) => altura - chao[coluna];
+  const cais = descricao.piso === 'cais';
+  const porto = (tile) => INICIO_PORTO + tile;
+  const piso = cais
+    ? { topo: porto(TILES_PORTO.concreto), corpo: porto(TILES_PORTO.concretoBase) }
+    : { topo: TILES.grama, corpo: TILES.terra };
 
   chao.forEach((alturaChao, coluna) => {
-    if (alturaChao === 0) return;
-    colisao.pintar(coluna, topo(coluna), TILES.grama);
-    for (let linha = topo(coluna) + 1; linha < altura; linha += 1) colisao.pintar(coluna, linha, TILES.terra);
-    if (coluna % 7 === 3) fundo.pintar(coluna, topo(coluna) - 1, TILES.arbusto);
+    if (alturaChao === 0) {
+      if (!cais) return;
+      fundo.pintar(coluna, altura - LINHAS_MAR, TILES.mar);
+      for (let linha = altura - LINHAS_MAR + 1; linha < altura; linha += 1) fundo.pintar(coluna, linha, TILES.marFundo);
+      return;
+    }
+    colisao.pintar(coluna, topo(coluna), piso.topo);
+    for (let linha = topo(coluna) + 1; linha < altura; linha += 1) colisao.pintar(coluna, linha, piso.corpo);
+    if (!cais && coluna % 7 === 3) fundo.pintar(coluna, topo(coluna) - 1, TILES.arbusto);
     if (coluna % 11 === 6) fundo.pintar(coluna, 3 + (coluna % 3), TILES.nuvem);
   });
 
@@ -219,6 +262,21 @@ export function gerarMapa(descricao) {
     }
     const linha = topo(coluna) - alturaSobreChao;
     for (let i = 0; i < larguraPlataforma; i += 1) colisao.pintar(coluna + i, linha, TILES.plataforma);
+  }
+
+  for (const { coluna, largura: larguraPilha, altura: alturaPilha } of descricao.conteineres ?? []) {
+    const colunas = chao.slice(coluna, coluna + larguraPilha);
+    if (colunas.length !== larguraPilha || !colunas.every((alturaChao) => alturaChao > 0 && alturaChao === colunas[0])) {
+      throw new Error(`contêineres entre as colunas ${coluna} e ${coluna + larguraPilha - 1}: a pilha pede chão plano, sem vão`);
+    }
+    if (alturaPilha > PULO.segurado.altura) {
+      throw new Error(`contêineres de ${alturaPilha} tiles na coluna ${coluna}: o pulo sobe ${PULO.segurado.altura}`);
+    }
+    for (let i = 0; i < larguraPilha; i += 1) {
+      for (let andar = 1; andar <= alturaPilha; andar += 1) {
+        colisao.pintar(coluna + i, topo(coluna) - andar, porto(CORES_CONTEINER[(coluna + i + andar) % CORES_CONTEINER.length]));
+      }
+    }
   }
 
   const colunaFim = largura - RECUO_FIM;
@@ -306,7 +364,7 @@ export function gerarMapa(descricao) {
     renderorder: 'right-down',
     tiledversion: '1.11.0',
     tileheight: TILE,
-    tilesets: [tilesetEmbutido()],
+    tilesets: tilesetsEmbutidos(cais),
     tilewidth: TILE,
     type: 'map',
     version: '1.10',
