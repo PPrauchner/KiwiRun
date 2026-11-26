@@ -8,12 +8,15 @@
 
 /** Prefixo das chaves; a versão sobe quando os descontos do Placar forem recalibrados. */
 const PREFIXO = 'kiwirun:v1:recorde:';
-const INICIAIS_VALIDAS = /^[A-Z]{0,3}$/;
+/** As Iniciais gravadas quando a Volta por inatividade cai durante as Iniciais. */
+export const INICIAIS_DA_VOLTA = '---';
+const INICIAIS_VALIDAS = /^([A-Z]{0,3}|---)$/;
 
 /**
  * @typedef {Object} Recorde
  * @property {number} segundos - O Tempo final arredondado para décimos.
- * @property {string} iniciais - As Iniciais; vazias até o Visitante gravá-las.
+ * @property {string} iniciais - As Iniciais; vazias até o Visitante gravá-las, e
+ *   `INICIAIS_DA_VOLTA` se a Volta por inatividade caiu antes.
  */
 
 /**

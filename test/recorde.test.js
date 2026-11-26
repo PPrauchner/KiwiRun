@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { arredondarDecimos, criarAtalhoZerar, criarRecordes, SEGUNDOS_ZERAR, textoRecorde } from '../src/logica/recorde.js';
+import { arredondarDecimos, criarAtalhoZerar, criarRecordes, INICIAIS_DA_VOLTA, SEGUNDOS_ZERAR, textoRecorde } from '../src/logica/recorde.js';
 import { criarTextos } from '../src/logica/textos.js';
 
 /**
@@ -54,6 +54,16 @@ test('o Recorde devolve as Iniciais gravadas, e um Novo Recorde as limpa até gr
   assert.equal(recordes.ler('pecuaria').iniciais, '');
   recordes.gravarIniciais('pecuaria', 'KIW');
   assert.deepEqual(recordes.ler('pecuaria'), { segundos: 40, iniciais: 'KIW' });
+});
+
+test('Iniciais: a Volta por inatividade grava "---" no Recorde, que continua válido', () => {
+  const armazenamento = armazenamentoEmMemoria();
+  const recordes = criarRecordes(armazenamento);
+  recordes.registrar('pecuaria', 42.3);
+  recordes.gravarIniciais('pecuaria', INICIAIS_DA_VOLTA);
+
+  assert.equal(INICIAIS_DA_VOLTA, '---');
+  assert.deepEqual(criarRecordes(armazenamento).ler('pecuaria'), { segundos: 42.3, iniciais: '---' });
 });
 
 test('cada Fase tem o seu Recorde', () => {
