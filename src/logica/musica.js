@@ -45,7 +45,6 @@ export function chaveMusica(andamento) {
 
 /**
  * @typedef {Object} Trilha
- * @property {number | null} andamento - O andamento tocando; `null` antes da primeira tela.
  * @property {(andamento: number) => boolean} tocar - Pede o andamento de uma tela e diz se a
  *   música tem de (re)começar: só quando ele muda.
  */
@@ -59,9 +58,6 @@ export function criarTrilha() {
   /** @type {number | null} */
   let atual = null;
   return {
-    get andamento() {
-      return atual;
-    },
     tocar(andamento) {
       if (andamento === atual) return false;
       atual = andamento;
