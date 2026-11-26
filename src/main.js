@@ -14,6 +14,7 @@ import { Fase } from './cenas/fase.js';
 import { Placar } from './cenas/placar.js';
 import { Iniciais } from './cenas/iniciais.js';
 import { Pausa } from './cenas/pausa.js';
+import { Creditos } from './cenas/creditos.js';
 import { FISICA } from './logica/pulo.js';
 
 /** Resolução interna; o Phaser escala para caber na janela, com barras fora de 16:9. */
@@ -66,7 +67,7 @@ const jogo = new Phaser.Game({
     },
   },
   // A Pausa vem depois da Fase para ser desenhada por cima dela.
-  scene: [Preload, TelaInicial, Menu, Fase, Pausa, Iniciais, Placar],
+  scene: [Preload, TelaInicial, Menu, Creditos, Fase, Pausa, Iniciais, Placar],
 });
 
 // Exposto para o smoke (Playwright) inspecionar a cena ativa.

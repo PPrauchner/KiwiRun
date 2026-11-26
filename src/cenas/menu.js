@@ -4,8 +4,9 @@
  * de Mundos: um Mundo ou Fase novo no catálogo aparece aqui sem mudar a cena.
  *
  * Mundos e Fases "em breve" e a opção desabilitada aparecem apagados e o cursor não os
- * seleciona. Confirmar numa Fase a abre; Voltar ou Esc levam à Tela inicial. O Recorde
- * mostra as Iniciais e o Tempo final ("ABC 42,3 s"), ou "—" até existir.
+ * seleciona. Confirmar numa Fase a abre; Créditos abre os Créditos; Voltar ou Esc levam à
+ * Tela inicial. O Recorde mostra as Iniciais e o Tempo final ("ABC 42,3 s"), ou "—" até
+ * existir.
  */
 import { FONTE } from './preload.js';
 import { MUNDOS } from '../logica/catalogo.js';
