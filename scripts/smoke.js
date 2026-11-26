@@ -31,7 +31,7 @@ import { DURACAO_FATO } from '../src/logica/fila-fatos.js';
 import { chaveNomeItem, chaveNomePredador } from '../src/logica/catalogo.js';
 import { SEGUNDOS_INVULNERAVEL } from '../src/logica/captura.js';
 import { SEGUNDOS_BLOQUEIO } from '../src/logica/input.js';
-import { SEGUNDOS_ZERAR, textoRecorde } from '../src/logica/recorde.js';
+import { arredondarDecimos, SEGUNDOS_ZERAR, textoRecorde } from '../src/logica/recorde.js';
 import { chaveOpcaoPausa, LINHAS_CONTROLES } from '../src/logica/menu-pausa.js';
 
 const LIMITE_MS = 15_000;
@@ -477,14 +477,14 @@ async function levarAoFim(pagina) {
 
 /**
  * @param {import('playwright').Page} pagina - A página do jogo.
- * @returns {Promise<{ textos: string[], opcoes: string[], opcao: string }>} Os textos e as
- *   opções do Placar.
+ * @returns {Promise<{ textos: string[], opcoes: string[], opcao: string, tempoGasto: number }>}
+ *   Os textos e as opções do Placar, e o Tempo gasto que ele recebeu.
  */
 function estadoDoPlacar(pagina) {
   return pagina.evaluate((cena) => {
     const placar = window.kiwirun.jogo.scene.getScene(cena);
     const textos = placar.children.list.filter((objeto) => objeto.type === 'BitmapText').map((objeto) => objeto.text);
-    return { textos, opcoes: [...placar.menu.opcoes], opcao: placar.menu.opcao };
+    return { textos, opcoes: [...placar.menu.opcoes], opcao: placar.menu.opcao, tempoGasto: placar.placar.tempoGasto };
   }, CENA_PLACAR);
 }
 
@@ -530,6 +530,9 @@ async function verificarPlacar(pagina) {
     if (!placar.textos.includes(esperado)) problemas.push(`Placar sem o texto "${esperado}"`);
   }
   if (!placar.textos.some((texto) => /^\d+,\d s$/.test(texto))) problemas.push('Placar sem tempo "N,N s" em PT');
+  // Arredondado como o Tempo final, para a conta da tela fechar.
+  const tempoGasto = textos.tempo(arredondarDecimos(placar.tempoGasto));
+  if (!placar.textos.includes(tempoGasto)) problemas.push(`Placar sem o Tempo gasto arredondado "${tempoGasto}"`);
   if (placar.opcoes.includes('proxima')) problemas.push('Placar oferece "Próxima Fase" com o Porto em breve');
   if (placar.opcao !== 'jogar_de_novo') problemas.push(`Placar abriu com o cursor em "${placar.opcao}"`);
 
@@ -758,7 +761,11 @@ async function verificarVolta(pagina) {
 
   await abrirCena(pagina, CENA_FASE, { faseId: FASE_PECUARIA });
   await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.getScene(cena)?.kiwi?.active === true, CENA_FASE, { timeout: LIMITE_MS });
-  await pagina.evaluate((cena) => window.kiwirun.jogo.scene.getScene(cena).abrirPausa(), CENA_FASE);
+  // A Pausa aberta de fora do quadro (perda de foco) não deixa o aviso da Fase congelado por baixo.
+  if (!(await esperarAviso(pagina, CENA_FASE, pt))) problemas.push('o aviso não apareceu na Fase parada antes da Pausa');
+  await pagina.evaluate(() => window.kiwirun.jogo.events.emit('blur'));
+  if (!(await esperarCena(pagina, CENA_PAUSA))) problemas.push('a perda de foco não abriu a Pausa');
+  if ((await textosDaCena(pagina, CENA_FASE)).some((texto) => texto.startsWith(avisoPt))) problemas.push('o aviso da Fase ficou por baixo da Pausa');
   if (!(await esperarAviso(pagina, CENA_PAUSA, pt))) problemas.push('o aviso não apareceu na Pausa parada');
   if (!(await voltou(pagina))) problemas.push('a Volta pela Pausa não abriu só a Tela inicial (a Fase ficou por baixo?)');
 
