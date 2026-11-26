@@ -70,7 +70,19 @@ export const MUNDOS = Object.freeze([
         // Mais rápido que o andamento base das telas: a Fase pede pressa.
         andamento: 140,
       },
-      faseEmBreve('porto'),
+      {
+        id: 'porto',
+        chaveNome: 'fase.porto',
+        emBreve: false,
+        mapa: 'assets/mapas/porto.tmj',
+        itens: ['kiwifruta', 'caixa'],
+        chavesFato: ['fato.porto.1', 'fato.porto.2', 'fato.porto.3'],
+        // Provisório até o playtest, pelo comprimento do percurso, como na Pecuária: 98 tiles
+        // andando dão ~13 s; com pulos, guindastes, esteiras e Capturas, ~30 s.
+        tempoReferencia: 30,
+        // O andamento da Pecuária: o Porto também pede pressa.
+        andamento: 140,
+      },
       faseEmBreve('foguete'),
     ],
   },
