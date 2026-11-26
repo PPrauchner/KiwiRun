@@ -7,6 +7,7 @@ import { criarTextos } from './logica/textos.js';
 import { criarTeclado, registraTecla } from './logica/input.js';
 import { criarRecordes } from './logica/recorde.js';
 import { criarSilencio } from './logica/silencio.js';
+import { manterTelaAcesa } from './logica/tela-acesa.js';
 import { Preload } from './cenas/preload.js';
 import { TelaInicial } from './cenas/tela-inicial.js';
 import { Menu } from './cenas/menu.js';
@@ -69,6 +70,9 @@ const jogo = new Phaser.Game({
   // A Pausa vem depois da Fase para ser desenhada por cima dela.
   scene: [Preload, TelaInicial, Menu, Creditos, Fase, Pausa, Iniciais, Placar],
 });
+
+// A tela do notebook do evento não pode apagar no meio de uma Fase.
+manterTelaAcesa(navigator, document);
 
 // Exposto para o smoke (Playwright) inspecionar a cena ativa.
 window.kiwirun = { jogo };

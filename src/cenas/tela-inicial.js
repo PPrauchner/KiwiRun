@@ -3,6 +3,9 @@
  * num canto. Esquerda/direita (setas, D-pad, analógico) alternam o idioma sem sair da tela;
  * confirmar (botão frontal, Start, Enter ou Espaço) abre o Menu.
  *
+ * Sem ponteiro fino (aparelho de toque), um aviso "Jogue no computador" com o link do Pages
+ * aparece sob a saudação; não há controles de toque, mas qualquer tecla segue mesmo assim.
+ *
  * Só no teclado, o Apresentador zera os Recordes segurando Shift+Backspace por 3 s; uma
  * mensagem confirma.
  */
@@ -14,6 +17,7 @@ import { criarVigiaInatividade } from './inatividade.js';
 import { criarControleSilencio } from './silencio.js';
 import { criarSeletorIdioma } from '../logica/seletor-idioma.js';
 import { criarAtalhoZerar } from '../logica/recorde.js';
+import { deveAvisarToque } from '../logica/aviso-toque.js';
 
 /** Tamanho nativo da fonte bitmap; múltiplos inteiros mantêm a pixel art nítida. */
 const TAMANHO_FONTE = 12;
@@ -25,6 +29,7 @@ const ESPACO_SELETOR = 8;
 const COR_CONFIRMACAO = 0x9be29b;
 /** Por quanto tempo a confirmação de Recordes zerados fica na tela, em ms. */
 const DURACAO_CONFIRMACAO_MS = 3000;
+const COR_AVISO_TOQUE = 0xffd166;
 
 export class TelaInicial extends Phaser.Scene {
   constructor() {
@@ -55,6 +60,15 @@ export class TelaInicial extends Phaser.Scene {
       .setOrigin(0.5)
       .setTint(COR_CONFIRMACAO)
       .setVisible(false);
+    this.avisoToque = null;
+    if (deveAvisarToque(window.matchMedia?.bind(window))) {
+      this.avisoToque = this.add.bitmapText(largura / 2, altura * 0.53, FONTE, textos.t('tela_inicial.toque'), TAMANHO_FONTE)
+        .setOrigin(0.5)
+        .setTint(COR_AVISO_TOQUE);
+      this.add.bitmapText(largura / 2, altura * 0.59, FONTE, textos.t('tela_inicial.link'), TAMANHO_FONTE)
+        .setOrigin(0.5)
+        .setTint(COR_DISCRETA);
+    }
     // Sem aviso aqui; a Volta reabre a Tela inicial em PT.
     this.silencio = criarControleSilencio(this);
     this.inatividade = criarVigiaInatividade(this, { comAviso: false });
@@ -114,6 +128,7 @@ export class TelaInicial extends Phaser.Scene {
     } else if (this.seletor.atualizar(acoes)) {
       this.aperte.setText(this.textos.t('tela_inicial.aperte'));
       this.confirmacao.setText(this.textos.t('tela_inicial.recordes_zerados'));
+      this.avisoToque?.setText(this.textos.t('tela_inicial.toque'));
       this.pintarSeletor();
     }
   }
