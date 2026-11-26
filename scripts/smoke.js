@@ -6,7 +6,9 @@
  * carregada e confere o HUD,
  * a Fase parada até o primeiro input, a coleta de um Item, as Samambaias-prateadas e a
  * Fila de Fatos, a volta ao Checkpoint, e os Predadores: Captura, contato lateral e a
- * invulnerabilidade depois de voltar, as Iniciais do primeiro Recorde (o pulo segurado não
+ * invulnerabilidade depois de voltar, as Placas no idioma atual e as Ovelhas (paradas até o
+ * primeiro input, atravessadas de lado, levando o Kiwi montado e devolvendo-o ao Checkpoint
+ * quando ele fica prensado), as Iniciais do primeiro Recorde (o pulo segurado não
  * confirma, digitar letras sem mover o cursor, Esc volta uma letra), o Placar com "Novo
  * Recorde" (Tempo final, Itens por tipo, Capturas por espécie, Fatos e "???", sem "Próxima
  * Fase"), o bloqueio de entrada (o pulo segurado ao tocar o fim não escolhe nada no Placar,
@@ -30,6 +32,7 @@ import { VERSAO } from '../src/logica/versao.js';
 import { DURACAO_FATO } from '../src/logica/fila-fatos.js';
 import { chaveNomeItem, chaveNomePredador } from '../src/logica/catalogo.js';
 import { SEGUNDOS_INVULNERAVEL } from '../src/logica/captura.js';
+import { SEGUNDOS_PRESO } from '../src/logica/ovelha.js';
 import { SEGUNDOS_BLOQUEIO } from '../src/logica/input.js';
 import { arredondarDecimos, SEGUNDOS_ZERAR, textoRecorde } from '../src/logica/recorde.js';
 import { chaveOpcaoPausa, LINHAS_CONTROLES } from '../src/logica/menu-pausa.js';
@@ -64,8 +67,9 @@ async function objetosDaPecuaria(nome) {
  *
  * @param {import('playwright').Page} pagina - A página do jogo.
  * @returns {Promise<{ textos: string[], x: number, y: number, vy: number, segundos: number,
- *   fatosEncontrados: number, capturas: number, invulneravel: number, predadores: { x: number, y: number }[] }>}
- *   O estado; `predadores` são os que ainda estão na Fase.
+ *   fatosEncontrados: number, capturas: number, invulneravel: number, predadores: { x: number, y: number }[],
+ *   ovelhas: { x: number, y: number }[], checkpoint: { x: number, y: number } }>}
+ *   O estado; `predadores` são os que ainda estão na Fase e `checkpoint`, o ativo.
  */
 function estadoDaFase(pagina) {
   return pagina.evaluate((cena) => {
@@ -87,6 +91,8 @@ function estadoDaFase(pagina) {
       capturas: fase.capturas,
       invulneravel: fase.invulneravel,
       predadores,
+      ovelhas: fase.ovelhas.getChildren().map((ovelha) => ({ x: ovelha.x, y: ovelha.y })),
+      checkpoint: { ...fase.checkpoint },
     };
   }, CENA_FASE);
 }
@@ -110,6 +116,11 @@ async function verificarItensECheckpoints(pagina) {
   if (!parado.textos.includes(`0/${itens.length}`)) problemas.push(`HUD sem "0/${itens.length}": ${parado.textos}`);
   if (parado.y !== antes.y || parado.segundos !== 0) problemas.push('a Fase se mexeu antes do primeiro input');
   if (JSON.stringify(parado.predadores) !== JSON.stringify(antes.predadores)) problemas.push('um Predador se mexeu antes do primeiro input');
+  if (parado.ovelhas.length === 0) problemas.push('a Pecuária abriu sem Ovelhas');
+  if (JSON.stringify(parado.ovelhas) !== JSON.stringify(antes.ovelhas)) problemas.push('uma Ovelha se mexeu antes do primeiro input');
+  for (const { type: chave } of await objetosDaPecuaria('placa')) {
+    if (!parado.textos.includes(criarTextos().t(chave))) problemas.push(`Placa sem o texto "${criarTextos().t(chave)}"`);
+  }
 
   await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
   await pagina.keyboard.down('ArrowRight');
@@ -118,6 +129,7 @@ async function verificarItensECheckpoints(pagina) {
   const andou = await estadoDaFase(pagina);
   if (andou.x <= antes.x || andou.segundos <= 0) problemas.push('mover não deu a partida na Fase e no cronômetro');
   if (andou.predadores.every((predador, i) => predador.x === antes.predadores[i].x)) problemas.push('os Predadores não patrulham depois do primeiro input');
+  if (andou.ovelhas.every((ovelha, i) => ovelha.x === antes.ovelhas[i].x)) problemas.push('as Ovelhas não andam depois do primeiro input');
 
   // Leva o Kiwi ao primeiro Item, depois ao Checkpoint, e o derruba na Zona de queda.
   const levarKiwi = (x, y) => pagina.evaluate(([cena, alvoX, alvoY]) => {
@@ -158,6 +170,56 @@ async function verificarItensECheckpoints(pagina) {
     problemas.push('voltar ao Checkpoint perdeu as Samambaias-prateadas ou os Fatos encontrados');
   }
   problemas.push(...await verificarPredadores(pagina, levarKiwi, checkpoint));
+  problemas.push(...await verificarOvelhas(pagina, levarKiwi));
+  return problemas;
+}
+
+/**
+ * Confere a primeira Ovelha: de lado, o Kiwi a atravessa sem subir; caindo sobre ela, fica
+ * montado e é levado; prensado contra uma parede em cima dela, volta ao Checkpoint.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, com a Fase andando.
+ * @param {(x: number, y: number) => Promise<void>} levarKiwi - Põe o Kiwi num ponto.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarOvelhas(pagina, levarKiwi) {
+  const problemas = [];
+  // Recomeça a primeira Ovelha a 2 tiles da ponta esquerda, indo para a direita: sobra trajeto.
+  const ovelha = await pagina.evaluate((cena) => {
+    const [primeira] = window.kiwirun.jogo.scene.getScene(cena).ovelhas.getChildren();
+    const velocidade = Math.abs(primeira.body.velocity.x);
+    primeira.body.reset(primeira.getData('minX') + 36, primeira.y);
+    primeira.setVelocityX(velocidade);
+    return { x: primeira.x, y: primeira.y };
+  }, CENA_FASE);
+
+  await levarKiwi(ovelha.x + 6, ovelha.y);
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  const deLado = await estadoDaFase(pagina);
+  if (deLado.y < ovelha.y - 2) problemas.push('o Kiwi encostado de lado subiu na Ovelha em vez de atravessá-la');
+
+  const [agora] = deLado.ovelhas;
+  await levarKiwi(agora.x + 6, agora.y - 20);
+  await pagina.waitForTimeout(ESPERA_MS / 2);
+  const montado = await estadoDaFase(pagina);
+  await pagina.waitForTimeout(ESPERA_MS);
+  const levado = await estadoDaFase(pagina);
+  const andouOvelha = levado.ovelhas[0].x - montado.ovelhas[0].x;
+  if (montado.y > montado.ovelhas[0].y - 8) problemas.push(`o Kiwi não ficou montado na Ovelha: ${montado.y} sobre ${montado.ovelhas[0].y}`);
+  if (andouOvelha === 0 || Math.abs(levado.x - montado.x - andouOvelha) > 2) problemas.push(`a Ovelha não levou o Kiwi montado: Ovelha andou ${andouOvelha}, Kiwi ${levado.x - montado.x}`);
+
+  // Uma parede logo à frente do Kiwi montado o prensa enquanto a Ovelha anda.
+  await pagina.evaluate((cena) => {
+    const fase = window.kiwirun.jogo.scene.getScene(cena);
+    const parede = fase.add.zone(fase.kiwi.x + 8, fase.kiwi.y, 4, 54);
+    fase.physics.add.existing(parede, true);
+    fase.physics.add.collider(fase.kiwi, parede);
+    window.paredeDoSmoke = parede;
+  }, CENA_FASE);
+  await pagina.waitForTimeout(SEGUNDOS_PRESO * 1000 + ESPERA_MS);
+  const preso = await estadoDaFase(pagina);
+  await pagina.evaluate(() => window.paredeDoSmoke.destroy());
+  if (Math.abs(preso.x - preso.checkpoint.x) > 4) problemas.push(`preso numa Ovelha, o Kiwi não voltou ao Checkpoint: ${preso.x}`);
   return problemas;
 }
 
@@ -892,4 +954,4 @@ if (problemas.length > 0) {
   console.error(`Smoke falhou:\n- ${problemas.join('\n- ')}`);
   process.exit(1);
 }
-console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Iniciais, Placar, Recorde (recarregar e zerar), Pausa, bloqueio de entrada e Volta por inatividade funcionando, sem erro no console nem requisição fora da origem.');
+console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Placas, Ovelhas, Iniciais, Placar, Recorde (recarregar e zerar), Pausa, bloqueio de entrada e Volta por inatividade funcionando, sem erro no console nem requisição fora da origem.');
