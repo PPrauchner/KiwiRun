@@ -7,7 +7,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { TILE } from '../src/logica/pulo.js';
 import { COLUNAS, IMAGEM, LICENCA, QUANTIDADE } from '../scripts/tileset.js';
-import { IMAGEM_SAMAMBAIA, QUADROS_KIWI } from '../scripts/gerar-sprites.js';
+import { IMAGEM_BOTOES, IMAGEM_OVELHA, IMAGEM_SAMAMBAIA, QUADROS_KIWI } from '../scripts/gerar-sprites.js';
+import { BOTOES, BOTOES_DA_ACAO } from '../src/logica/placa.js';
 import { MUNDOS, PREDADORES, imagemItem, imagemPredador } from '../src/logica/catalogo.js';
 
 /**
@@ -61,5 +62,20 @@ test('toda espécie de Predador do catálogo tem seu sprite 18×18 gerado', asyn
   for (const especie of PREDADORES) {
     const { largura, altura } = await dimensoes(imagemPredador(especie));
     assert.deepEqual([largura, altura], [TILE, TILE], especie);
+  }
+});
+
+test('a Ovelha tem seu sprite 18×18 gerado', async () => {
+  const { largura, altura } = await dimensoes(IMAGEM_OVELHA);
+
+  assert.deepEqual([largura, altura], [TILE, TILE]);
+});
+
+test('os ícones de botão das Placas são uma faixa de quadros 18×18, um por botão', async () => {
+  const { largura, altura } = await dimensoes(IMAGEM_BOTOES);
+
+  assert.deepEqual([largura, altura], [BOTOES.length * TILE, TILE]);
+  for (const botoes of Object.values(BOTOES_DA_ACAO)) {
+    for (const botao of botoes) assert.ok(BOTOES.includes(botao), botao);
   }
 });
