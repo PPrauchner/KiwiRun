@@ -1,6 +1,6 @@
 /**
  * @file Gera os PNGs próprios na grade de 18×18: o sprite do Kiwi (faixa de quadros),
- * um sprite por Item, o da Samambaia-prateada, um por espécie de Predador, o da Ovelha, os ícones de botão das Placas e o do Silêncio (som cortado), desenhados por código numa paleta de pixel art. Os tiles vêm do Kenney Pixel
+ * um sprite por Item, o da Samambaia-prateada, um por espécie de Predador, o da Ovelha, os ícones de botão das Placas e o do Silêncio (som cortado), e o tileset do Porto (contêineres e cais), desenhados por código numa paleta de pixel art. Os outros tiles vêm do Kenney Pixel
  * Platformer (CC0). Sem dependências além do Node.
  *
  * Uso: `npm run gerar:sprites`.
@@ -12,6 +12,7 @@ import { codificarPng } from './png.js';
 import { TILE } from '../src/logica/pulo.js';
 import { imagemItem, imagemPredador } from '../src/logica/catalogo.js';
 import { BOTOES } from '../src/logica/placa.js';
+import { TILES_PORTO, TILESET_PORTO } from './tileset.js';
 
 const RAIZ_REPO = fileURLToPath(new URL('..', import.meta.url));
 export const IMAGEM_KIWI = 'assets/sprites/kiwi.png';
@@ -390,6 +391,65 @@ function desenhoSilencio(x, y) {
   return naFaixa && (x - 12 === y - 6 || x - 12 === 10 - y) ? COR_SILENCIO.corte : null;
 }
 
+/** Cores dos contêineres: a chapa e a sombra das nervuras, pelo id do tile no tileset do Porto. */
+const CORES_CONTEINER = Object.freeze({
+  [TILES_PORTO.conteinerVermelho]: [0xac3232, 0x76262a],
+  [TILES_PORTO.conteinerAzul]: [0x5b6ee1, 0x3f3f74],
+  [TILES_PORTO.conteinerVerde]: [0x37946e, 0x1f5c45],
+});
+const COR_TRILHO_CONTEINER = 0x222034;
+
+/**
+ * Um contêiner de navio visto de lado, num tile: chapa com nervuras verticais e trilhos escuros
+ * em cima e embaixo, para que a pilha mostre onde um contêiner acaba e o outro começa.
+ *
+ * @param {number} chapa - Cor da chapa.
+ * @param {number} nervura - Cor da sombra das nervuras.
+ * @returns {Desenho} O tile.
+ */
+function desenhoConteiner(chapa, nervura) {
+  return (x, y) => {
+    if (y === 0 || y === TILE - 1) return COR_TRILHO_CONTEINER;
+    return x % 3 === 2 ? nervura : chapa;
+  };
+}
+
+/** Paleta do cais: concreto claro, a sombra dele e a faixa zebrada da borda. */
+const COR_CAIS = Object.freeze({
+  concreto: 0x9badb7,
+  sombra: 0x847e87,
+  zebraClara: 0xfbf236,
+  zebraEscura: 0x222034,
+});
+
+/**
+ * Topo do cais: faixa zebrada amarela e preta na borda de cima e concreto embaixo.
+ *
+ * @type {Desenho}
+ */
+function desenhoConcreto(x, y) {
+  if (y <= 2) return Math.floor((x + y) / 3) % 2 === 0 ? COR_CAIS.zebraClara : COR_CAIS.zebraEscura;
+  return (x * 7 + y * 5) % 11 === 0 ? COR_CAIS.sombra : COR_CAIS.concreto;
+}
+
+/**
+ * O cais por baixo do topo: concreto mais escuro, com juntas entre os blocos.
+ *
+ * @type {Desenho}
+ */
+function desenhoConcretoBase(x, y) {
+  if (y === TILE - 1 || x === 0) return COR_CAIS.zebraEscura;
+  return (x * 5 + y * 3) % 13 === 0 ? COR_CAIS.concreto : COR_CAIS.sombra;
+}
+
+/** Desenho de cada tile do Porto, na ordem dos ids do tileset. */
+const DESENHOS_TILES_PORTO = Object.freeze([
+  ...[TILES_PORTO.conteinerVermelho, TILES_PORTO.conteinerAzul, TILES_PORTO.conteinerVerde]
+    .map((id) => desenhoConteiner(...CORES_CONTEINER[id])),
+  desenhoConcreto,
+  desenhoConcretoBase,
+]);
+
 /**
  * Junta desenhos 18×18 numa grade, da esquerda para a direita e de cima para baixo.
  *
@@ -437,4 +497,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   console.log(`Gerado ${IMAGEM_BOTOES}`);
   await gravar(IMAGEM_SILENCIO, montarGrade([desenhoSilencio], 1));
   console.log(`Gerado ${IMAGEM_SILENCIO}`);
+  await gravar(TILESET_PORTO.imagem, montarGrade(DESENHOS_TILES_PORTO, TILESET_PORTO.colunas));
+  console.log(`Gerado ${TILESET_PORTO.imagem}`);
 }
