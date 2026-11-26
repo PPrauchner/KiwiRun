@@ -1,6 +1,6 @@
 /**
  * @file Gera os PNGs próprios na grade de 18×18: o sprite do Kiwi (faixa de quadros),
- * um sprite por Item, o da Samambaia-prateada, um por espécie de Predador, o da Ovelha, os ícones de botão das Placas e o do Silêncio (som cortado), e o tileset do Porto (contêineres e cais), desenhados por código numa paleta de pixel art. Os outros tiles vêm do Kenney Pixel
+ * um sprite por Item, o da Samambaia-prateada, um por espécie de Predador, o da Ovelha, os ícones de botão das Placas e o do Silêncio (som cortado), o da esteira e o tileset do Porto (contêineres e cais), desenhados por código numa paleta de pixel art. Os outros tiles vêm do Kenney Pixel
  * Platformer (CC0). Sem dependências além do Node.
  *
  * Uso: `npm run gerar:sprites`.
@@ -442,6 +442,33 @@ function desenhoConcretoBase(x, y) {
   return (x * 5 + y * 3) % 13 === 0 ? COR_CAIS.concreto : COR_CAIS.sombra;
 }
 
+export const IMAGEM_ESTEIRA = 'assets/sprites/esteira.png';
+
+/** Paleta da esteira: lona escura, rolos cinza e as setas amarelas do sentido. */
+const COR_ESTEIRA = Object.freeze({
+  lona: 0x3f3f4a,
+  borda: 0x222034,
+  rolo: 0x9badb7,
+  seta: 0xfbf236,
+});
+
+/**
+ * Esteira, num tile que se repete: lona escura com uma seta ">" amarela apontando para a
+ * direita (a cena espelha a esteira que anda para a esquerda) e rolos embaixo.
+ *
+ * @type {Desenho}
+ */
+function desenhoEsteira(x, y) {
+  if (y === 0 || y === 7) return COR_ESTEIRA.borda;
+  if (y < 7) {
+    const seta = Math.abs(y - 3.5) + 0.5;
+    return x >= 6 + seta && x <= 8 + seta ? COR_ESTEIRA.seta : COR_ESTEIRA.lona;
+  }
+  const rolo = Math.hypot(x + 0.5 - 9, y + 0.5 - 12) <= 4.5;
+  if (rolo) return Math.hypot(x + 0.5 - 9, y + 0.5 - 12) <= 1.5 ? COR_ESTEIRA.borda : COR_ESTEIRA.rolo;
+  return y >= 16 ? COR_ESTEIRA.borda : COR_ESTEIRA.lona;
+}
+
 /** Desenho de cada tile do Porto, na ordem dos ids do tileset. */
 const DESENHOS_TILES_PORTO = Object.freeze([
   ...[TILES_PORTO.conteinerVermelho, TILES_PORTO.conteinerAzul, TILES_PORTO.conteinerVerde]
@@ -498,5 +525,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   await gravar(IMAGEM_SILENCIO, montarGrade([desenhoSilencio], 1));
   console.log(`Gerado ${IMAGEM_SILENCIO}`);
   await gravar(TILESET_PORTO.imagem, montarGrade(DESENHOS_TILES_PORTO, TILESET_PORTO.colunas));
+  await gravar(IMAGEM_ESTEIRA, montarGrade([desenhoEsteira], 1));
+  console.log(`Gerado ${IMAGEM_ESTEIRA}`);
   console.log(`Gerado ${TILESET_PORTO.imagem}`);
 }
