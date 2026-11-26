@@ -5,13 +5,15 @@
  *
  * Mundos e Fases "em breve" e a opção desabilitada aparecem apagados e o cursor não os
  * seleciona. Confirmar numa Fase a abre; Voltar ou Esc levam à Tela inicial. O Recorde
- * mostra "—" até existir.
+ * mostra as Iniciais e o Tempo final ("ABC 42,3 s"), ou "—" até existir.
  */
 import { FONTE } from './preload.js';
 import { MUNDOS } from '../logica/catalogo.js';
 import { chaveOpcao, criarMenu, OPCOES } from '../logica/menu.js';
 import { criarInput } from '../logica/input.js';
+import { textoRecorde } from '../logica/recorde.js';
 import { lerEntrada } from './entrada.js';
+import { criarVigiaInatividade } from './inatividade.js';
 
 /** Tamanho nativo da fonte bitmap; múltiplos inteiros mantêm a pixel art nítida. */
 const TAMANHO_FONTE = 12;
@@ -49,6 +51,7 @@ export class Menu extends Phaser.Scene {
     this.objetosFases = [];
     this.mundoMostrado = null;
     this.entrada = criarInput();
+    this.inatividade = criarVigiaInatividade(this);
     this.redesenhar();
   }
 
@@ -82,7 +85,8 @@ export class Menu extends Phaser.Scene {
     this.linhasFases = this.menu.mundo.fases.map((fase, indice) => {
       const nome = this.criarLinha(X_FASES, indice, fase.chaveNome, fase.emBreve, this.objetosFases);
       if (!fase.emBreve) {
-        const recorde = this.add.bitmapText(X_RECORDE, nome.y, FONTE, this.textos.t('menu.sem_recorde'), TAMANHO_FONTE);
+        const texto = textoRecorde(this.registry.get('recordes').ler(fase.id), this.textos);
+        const recorde = this.add.bitmapText(X_RECORDE, nome.y, FONTE, texto, TAMANHO_FONTE);
         this.objetosFases.push(recorde.setOrigin(1, 0));
       }
       return nome;
@@ -114,7 +118,9 @@ export class Menu extends Phaser.Scene {
    * @param {number} delta - Milissegundos desde o quadro anterior.
    */
   update(_tempo, delta) {
-    const destino = this.menu.atualizar(this.entrada.atualizar(lerEntrada(this), delta / 1000));
+    const acoes = this.entrada.atualizar(lerEntrada(this), delta / 1000);
+    if (this.inatividade.atualizar(this.entrada.segundosSemInput)) return;
+    const destino = this.menu.atualizar(acoes);
     if (destino?.tela === 'fase') this.scene.start('fase', { faseId: destino.faseId });
     else if (destino) this.scene.start(destino.tela);
     else this.redesenhar();

@@ -4,23 +4,30 @@
  * O Kiwi anda e pula (física Arcade em passo fixo de 60/s); a borda inferior do mapa é
  * Zona de queda e devolve o Kiwi ao último Checkpoint por que passou (o início é o
  * primeiro), mantendo os Itens, as Samambaias-prateadas e os Fatos já encontrados; tocar o
- * fim vence a Fase e, até o Placar existir, volta ao Menu. Até o primeiro mover ou pular, a Fase
+ * fim vence a Fase e abre o Placar, com os Itens por tipo e as Capturas por espécie. Até o
+ * primeiro mover ou pular, a Fase
  * e o cronômetro ficam parados. O HUD mostra o Tempo gasto, os Itens em "X/Y" e as
  * Samambaias-prateadas em "X/3"; pegar uma põe o seu Fato na Fila de Fatos, mostrada no topo
  * da tela sem pausar o jogo. Os Predadores patrulham entre as pontas da sua área no mapa:
  * cair sobre um é Captura (armadilha, quique e o nome da espécie flutuando); qualquer outro
  * contato devolve o Kiwi ao Checkpoint, onde ele fica invulnerável, piscando, por ~1 s. Os
  * controles vêm do Input unificado, que ignora a entrada nos primeiros ~0,5 s da Fase.
+ *
+ * Start ou Esc, a janela perder o foco (Alt+Tab, notificação) ou um controle desconectar
+ * abrem a Pausa por cima e pausam esta cena: o jogo, o cronômetro e a Fila de Fatos param
+ * com ela. Antes do primeiro input, continuar devolve a Fase ainda congelada.
  */
 import { buscarFase, chaveNomePredador, imagemItem } from '../logica/catalogo.js';
 import { resolverContato, SEGUNDOS_INVULNERAVEL, SEGUNDOS_ROTULO_CAPTURA } from '../logica/captura.js';
 import { criarControlePulo } from '../logica/controle-pulo.js';
-import { criarCronometro, formatarTempo } from '../logica/cronometro.js';
+import { criarCronometro } from '../logica/cronometro.js';
 import { criarFilaDeFatos, LARGURA_FATO } from '../logica/fila-fatos.js';
 import { criarInput } from '../logica/input.js';
+import { calcularPlacarDaTentativa } from '../logica/placar.js';
 import { FISICA, TILE } from '../logica/pulo.js';
 import { FONTE, TEXTURA_KIWI, TEXTURA_QUADROS_TILESET, TEXTURA_SAMAMBAIA, TEXTURA_TILESET, texturaPredador } from './preload.js';
 import { lerEntrada } from './entrada.js';
+import { criarVigiaInatividade } from './inatividade.js';
 
 /** Tamanho da hitbox do Kiwi, menor que o sprite de 18×18, e seu deslocamento nele. */
 const HITBOX = Object.freeze({ largura: 10, altura: 11, x: 4, y: 7 });
@@ -72,6 +79,18 @@ function ehUmaMao(tile) {
 }
 
 /**
+ * Conta os objetos do mapa por tipo, na ordem em que cada tipo aparece primeiro.
+ *
+ * @param {Phaser.Types.Tilemaps.TiledObject[]} objetos - Objetos do mapa.
+ * @returns {Record<string, number>} Quantos objetos de cada tipo.
+ */
+function contarPorTipo(objetos) {
+  const contagem = {};
+  for (const { type } of objetos) contagem[type] = (contagem[type] ?? 0) + 1;
+  return contagem;
+}
+
+/**
  * @param {string} item - Id do Item no catálogo.
  * @returns {string} A chave da textura do Item.
  */
@@ -90,10 +109,14 @@ export class Fase extends Phaser.Scene {
     this.chaveMapa = `mapa-${this.fase.id}`;
     this.venceu = false;
     this.coletados = 0;
+    /** @type {Record<string, number>} Itens coletados, por id do Item. */
+    this.coletadosPorItem = {};
     /** @type {string[]} Chaves dos Fatos já encontrados, na ordem em que foram pegos. */
     this.fatosEncontrados = [];
     this.filaFatos = criarFilaDeFatos();
     this.capturas = 0;
+    /** @type {Record<string, number>} Capturas, por espécie. */
+    this.capturasPorEspecie = {};
     /** Segundos de invulnerabilidade que restam depois de voltar ao Checkpoint. */
     this.invulneravel = 0;
   }
@@ -148,11 +171,13 @@ export class Fase extends Phaser.Scene {
     this.apertouPular = false;
     this.controlePulo = criarControlePulo();
     this.physics.world.on('worldstep', (dt) => this.passoDoKiwi(dt));
+    this.ouvirPausa();
 
     // A Fase fica congelada (e o cronômetro em zero) até o primeiro mover ou pular.
     this.cronometro = criarCronometro();
     this.physics.pause();
     this.criarHud();
+    this.inatividade = criarVigiaInatividade(this);
   }
 
   /**
@@ -161,6 +186,11 @@ export class Fase extends Phaser.Scene {
    */
   update(_tempo, delta) {
     this.acoes = this.entrada.atualizar(lerEntrada(this), delta / 1000);
+    if (this.inatividade.atualizar(this.entrada.segundosSemInput)) return;
+    if (this.acoes.pausar) {
+      this.abrirPausa();
+      return;
+    }
     // O passo de física pode não rodar neste quadro: o aperto espera por ele.
     if (this.acoes.pular) this.apertouPular = true;
     if (!this.cronometro.iniciado && this.houveMoverOuPular()) {
@@ -168,9 +198,39 @@ export class Fase extends Phaser.Scene {
       this.physics.resume();
     }
     this.cronometro.avancar(delta / 1000);
-    this.hudTempo.setText(formatarTempo(this.cronometro.segundos));
+    this.hudTempo.setText(this.registry.get('textos').tempo(this.cronometro.segundos));
     this.filaFatos.avancar(delta / 1000);
     this.mostrarFato(this.filaFatos.atual);
+  }
+
+  /**
+   * Liga o que abre a Pausa além de Start/Esc, e o que a Fase faz ao sair dela: um Input
+   * sem o bloqueio de ~0,5 s, que só trava o que vem segurado da Pausa.
+   */
+  ouvirPausa() {
+    const abrir = () => this.abrirPausa();
+    this.game.events.on(Phaser.Core.Events.BLUR, abrir);
+    this.game.events.on(Phaser.Core.Events.HIDDEN, abrir);
+    window.addEventListener('gamepaddisconnected', abrir);
+    const voltar = () => {
+      this.entrada = criarInput({ segundosBloqueio: 0 });
+    };
+    this.events.on(Phaser.Scenes.Events.RESUME, voltar);
+    // Os eventos da cena sobrevivem ao reinício da Fase: cada abertura desliga os seus.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.events.off(Phaser.Scenes.Events.RESUME, voltar);
+      this.game.events.off(Phaser.Core.Events.BLUR, abrir);
+      this.game.events.off(Phaser.Core.Events.HIDDEN, abrir);
+      window.removeEventListener('gamepaddisconnected', abrir);
+    });
+  }
+
+  /** Abre a Pausa por cima e congela a Fase, se ela estiver correndo e ainda não terminou. */
+  abrirPausa() {
+    if (this.venceu || !this.scene.isActive()) return;
+    this.inatividade.esconder();
+    this.scene.launch('pausa', { faseId: this.fase.id });
+    this.scene.pause();
   }
 
   /** @returns {boolean} Se o jogador está movendo ou acabou de pular. */
@@ -181,15 +241,18 @@ export class Fase extends Phaser.Scene {
   /** @param {Phaser.Types.Tilemaps.TiledObject[]} itens - Os pontos `item` do mapa. */
   criarItens(itens) {
     this.totalItens = itens.length;
+    this.totalPorItem = contarPorTipo(itens);
     const grupo = this.physics.add.staticGroup();
-    for (const { x, y, type } of itens) grupo.create(x, y, texturaItem(type));
+    for (const { x, y, type } of itens) grupo.create(x, y, texturaItem(type)).setData('item', type);
     this.physics.add.overlap(this.kiwi, grupo, (_kiwi, item) => this.coletar(item));
   }
 
   /** @param {Phaser.Physics.Arcade.Sprite} item - O Item que o Kiwi tocou. */
   coletar(item) {
+    const tipo = item.getData('item');
     item.destroy();
     this.coletados += 1;
+    this.coletadosPorItem[tipo] = (this.coletadosPorItem[tipo] ?? 0) + 1;
     this.atualizarHudItens();
   }
 
@@ -217,6 +280,7 @@ export class Fase extends Phaser.Scene {
    * @param {Phaser.Types.Tilemaps.TiledObject[]} areas - As áreas `predador` do mapa.
    */
   criarPredadores(areas) {
+    this.totalPorEspecie = contarPorTipo(areas);
     this.predadores = this.physics.add.group({ allowGravity: false, immovable: true });
     for (const { x, y, width: largura, height: altura, type: especie } of areas) {
       const predador = this.predadores.create(x + TILE / 2, y + altura - TILE / 2, texturaPredador(especie));
@@ -262,6 +326,7 @@ export class Fase extends Phaser.Scene {
     const especie = predador.getData('especie');
     predador.disableBody(true, false);
     this.capturas += 1;
+    this.capturasPorEspecie[especie] = (this.capturasPorEspecie[especie] ?? 0) + 1;
     this.kiwi.body.setVelocityY(this.controlePulo.quicar());
 
     const duracao = SEGUNDOS_ROTULO_CAPTURA * 1000;
@@ -296,7 +361,7 @@ export class Fase extends Phaser.Scene {
   criarHud() {
     const { width: largura } = this.scale;
     const fixo = (objeto) => objeto.setScrollFactor(0).setDepth(PROFUNDIDADE_HUD);
-    this.hudTempo = fixo(this.add.bitmapText(MARGEM_HUD, MARGEM_HUD, FONTE, formatarTempo(0), TAMANHO_FONTE_HUD));
+    this.hudTempo = fixo(this.add.bitmapText(MARGEM_HUD, MARGEM_HUD, FONTE, this.registry.get('textos').tempo(0), TAMANHO_FONTE_HUD));
     const [primeiroItem] = this.fase.itens;
     const larguraIcone = primeiroItem ? TILE + MARGEM_HUD / 2 : 0;
     if (primeiroItem) {
@@ -409,10 +474,25 @@ export class Fase extends Phaser.Scene {
     this.kiwi.setAlpha(apagado ? OPACIDADE_PISCANDO : 1);
   }
 
+  /** Grava o Recorde assim que a Fase termina; um Novo Recorde passa pelas Iniciais. */
   vencer() {
     if (this.venceu) return;
     this.venceu = true;
     this.cronometro.parar();
-    this.scene.start('menu');
+    const resultado = this.resultado();
+    const { tempoFinal } = calcularPlacarDaTentativa(resultado);
+    const novoRecorde = this.registry.get('recordes').registrar(resultado.faseId, tempoFinal);
+    this.scene.start(novoRecorde ? 'iniciais' : 'placar', { ...resultado, novoRecorde });
+  }
+
+  /** @returns {import('../logica/placar.js').Tentativa} O que a tentativa fez, para o Placar. */
+  resultado() {
+    return {
+      faseId: this.fase.id,
+      tempoGasto: this.cronometro.segundos,
+      itens: Object.entries(this.totalPorItem).map(([item, total]) => ({ item, coletados: this.coletadosPorItem[item] ?? 0, total })),
+      capturas: Object.keys(this.totalPorEspecie).map((especie) => ({ especie, quantidade: this.capturasPorEspecie[especie] ?? 0 })),
+      fatosEncontrados: [...this.fatosEncontrados],
+    };
   }
 }

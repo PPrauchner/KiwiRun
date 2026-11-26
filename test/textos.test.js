@@ -46,3 +46,20 @@ test('idioma desconhecido é recusado', () => {
 
   assert.throws(() => textos.definirIdioma('fr'));
 });
+
+test('abaixo de 60 s o tempo sai em segundos, com o separador decimal do idioma', () => {
+  const textos = criarTextos();
+
+  assert.equal(textos.tempo(42.38), '42,3 s');
+  textos.definirIdioma('en');
+  assert.equal(textos.tempo(42.38), '42.3 s');
+});
+
+test('a partir de 60 s o tempo sai em minutos e segundos, com o separador decimal do idioma', () => {
+  const textos = criarTextos();
+
+  assert.equal(textos.tempo(75.39), '1:15,3');
+  assert.equal(textos.tempo(60), '1:00,0');
+  textos.definirIdioma('en');
+  assert.equal(textos.tempo(75.39), '1:15.3');
+});

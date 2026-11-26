@@ -62,7 +62,9 @@ export const MUNDOS = Object.freeze([
         mapa: 'assets/mapas/pecuaria.tmj',
         itens: ['la', 'leite'],
         chavesFato: ['fato.pecuaria.1', 'fato.pecuaria.2', 'fato.pecuaria.3'],
-        tempoReferencia: 60,
+        // Provisório até o playtest, pelo comprimento do percurso: 92 tiles andando dão
+        // ~12 s; com pulos, Capturas e a volta à Samambaia-prateada escondida, ~30 s.
+        tempoReferencia: 30,
       },
       faseEmBreve('porto'),
       faseEmBreve('foguete'),
@@ -108,6 +110,27 @@ export function buscarFase(id) {
   const fase = MUNDOS.flatMap((mundo) => mundo.fases).find((candidata) => candidata.id === id);
   if (!fase) throw new Error(`Fase desconhecida: ${id}`);
   return fase;
+}
+
+/**
+ * A Fase seguinte a uma Fase, no mesmo Mundo, se já pode ser jogada.
+ *
+ * @param {string} id - Id da Fase atual.
+ * @param {readonly Mundo[]} [mundos] - Os Mundos; o padrão é o catálogo do jogo.
+ * @returns {Fase | null} A próxima Fase, ou `null` se é a última do Mundo ou está em breve.
+ */
+export function proximaFase(id, mundos = MUNDOS) {
+  const { fases } = mundos.find((mundo) => mundo.fases.some((fase) => fase.id === id));
+  const seguinte = fases[fases.findIndex((fase) => fase.id === id) + 1];
+  return seguinte && !seguinte.emBreve ? seguinte : null;
+}
+
+/**
+ * @param {string} item - Id do Item.
+ * @returns {string} A chave do nome do Item nos Textos.
+ */
+export function chaveNomeItem(item) {
+  return `item.${item}`;
 }
 
 /**

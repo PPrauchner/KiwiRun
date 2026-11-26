@@ -96,6 +96,7 @@ export const GLIFOS = {
   '/': ['..#', '..#', '.#.', '.#.', '.#.', '#..', '#..'],
   '|': ['#', '#', '#', '#', '#', '#', '#'],
   '+': ['', '', '.#.', '###', '.#.'],
+  '×': ['', '', '#.#', '.#.', '#.#'],
 };
 
 /** Sinais diacríticos de 2 linhas, centralizados sobre a letra-base. @type {Record<string, Desenho>} */

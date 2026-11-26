@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MUNDOS, PREDADORES, buscarFase, chaveNomePredador } from '../src/logica/catalogo.js';
+import { MUNDOS, PREDADORES, buscarFase, chaveNomeItem, chaveNomePredador, proximaFase } from '../src/logica/catalogo.js';
 import { DICIONARIOS } from '../src/logica/textos.js';
 
 const ASSUNTOS = ['geografia', 'culinaria', 'curiosidades', 'historia', 'economia-tecnologia', 'fauna-flora'];
@@ -51,5 +51,29 @@ test('toda espécie de Predador do catálogo tem nome nos textos dos dois idioma
     for (const especie of PREDADORES) {
       assert.ok(Object.hasOwn(dicionario, chaveNomePredador(especie)), `${idioma} sem o nome de ${especie}`);
     }
+  }
+});
+
+test('a próxima Fase é a seguinte do mesmo Mundo, se jogável', () => {
+  const fase = (id, emBreve) => ({ id, chaveNome: `fase.${id}`, emBreve, mapa: null, itens: [], chavesFato: [], tempoReferencia: null });
+  const mundos = [
+    { id: 'm1', chaveNome: 'mundo.m1', emBreve: false, fases: [fase('a', false), fase('b', false), fase('c', true)] },
+    { id: 'm2', chaveNome: 'mundo.m2', emBreve: false, fases: [fase('d', false)] },
+  ];
+
+  assert.equal(proximaFase('a', mundos)?.id, 'b');
+  assert.equal(proximaFase('b', mundos), null, 'a seguinte está em breve');
+  assert.equal(proximaFase('d', mundos), null, 'última Fase do Mundo');
+});
+
+test('depois da Pecuária não há Fase disponível: o Porto está em breve', () => {
+  assert.equal(proximaFase('pecuaria'), null);
+});
+
+test('todo Item das Fases do catálogo tem nome nos textos dos dois idiomas', () => {
+  const itens = new Set(MUNDOS.flatMap((mundo) => mundo.fases.flatMap((fase) => fase.itens)));
+
+  for (const [idioma, dicionario] of Object.entries(DICIONARIOS)) {
+    for (const item of itens) assert.ok(Object.hasOwn(dicionario, chaveNomeItem(item)), `${idioma} sem o nome de ${item}`);
   }
 });

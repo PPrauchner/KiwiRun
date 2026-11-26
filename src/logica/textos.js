@@ -5,6 +5,7 @@
  */
 import pt from '../conteudo/textos/pt.js';
 import en from '../conteudo/textos/en.js';
+import { formatarTempo } from './cronometro.js';
 
 /** @typedef {Record<string, string>} Dicionario */
 
@@ -18,6 +19,8 @@ export const IDIOMA_PADRAO = 'pt';
  * @property {string} idioma - O idioma atual.
  * @property {(idioma: string) => void} definirIdioma - Troca o idioma atual.
  * @property {(chave: string, parametros?: Record<string, string>) => string} t - O texto da chave no idioma atual.
+ * @property {(segundos: number) => string} tempo - Um tempo formatado no idioma atual: `42,3 s` ou
+ *   `1:15,3` em PT.
  */
 
 /**
@@ -45,6 +48,9 @@ export function criarTextos(dicionarios = DICIONARIOS) {
     t(chave, parametros = {}) {
       const modelo = dicionarios[idioma][chave] ?? chave;
       return modelo.replace(/\{(\w+)\}/g, (trecho, nome) => parametros[nome] ?? trecho);
+    },
+    tempo(segundos) {
+      return formatarTempo(segundos, this.t('numero.separador_decimal'));
     },
   };
 }
