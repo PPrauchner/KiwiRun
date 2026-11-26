@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { TILE } from '../src/logica/pulo.js';
 import { COLUNAS, IMAGEM, LICENCA, QUANTIDADE, TILESET_PORTO } from '../scripts/tileset.js';
-import { IMAGEM_BOTOES, IMAGEM_ESTEIRA, IMAGEM_OVELHA, IMAGEM_SAMAMBAIA, IMAGEM_SILENCIO, QUADROS_KIWI } from '../scripts/gerar-sprites.js';
+import { IMAGEM_BOTOES, IMAGEM_ESTEIRA, IMAGEM_GUINDASTE, IMAGEM_OVELHA, IMAGEM_SAMAMBAIA, IMAGEM_SILENCIO, QUADROS_KIWI } from '../scripts/gerar-sprites.js';
 import { BOTOES, BOTOES_DA_ACAO } from '../src/logica/placa.js';
 import { MUNDOS, PREDADORES, imagemItem, imagemPredador } from '../src/logica/catalogo.js';
 
@@ -102,6 +102,12 @@ test('o tileset do Porto, gerado por script, tem as colunas e linhas de tiles 18
 
 test('a esteira tem seu sprite 18×18 gerado', async () => {
   const { largura, altura } = await dimensoes(IMAGEM_ESTEIRA);
+
+  assert.deepEqual([largura, altura], [TILE, TILE]);
+});
+
+test('a viga do guindaste tem seu sprite 18×18 gerado', async () => {
+  const { largura, altura } = await dimensoes(IMAGEM_GUINDASTE);
 
   assert.deepEqual([largura, altura], [TILE, TILE]);
 });
