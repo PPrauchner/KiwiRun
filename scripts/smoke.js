@@ -2,7 +2,9 @@
  * @file Smoke no navegador: abre o jogo servido localmente no Chromium (Playwright),
  * espera a Tela inicial, troca o idioma para EN (o Menu sai em inglês, nada vai ao
  * `localStorage` e recarregar volta ao PT), aperta uma tecla, confere o Menu (cursor na Pecuária, Mundos e
- * Fases em breve marcados, Esc de volta à Tela inicial), escolhe a Pecuária, espera ela
+ * Fases em breve marcados, Esc de volta à Tela inicial), os Créditos (abertos pelo Menu, com
+ * o grupo, os pacotes Kenney, o Phaser e as fontes dos Fatos por Fase, M silenciando, Esc e
+ * "Voltar" de volta ao Menu), escolhe a Pecuária, espera ela
  * carregada e confere o HUD,
  * a Fase parada até o primeiro input, a coleta de um Item, as Samambaias-prateadas e a
  * Fila de Fatos, a volta ao Checkpoint, e os Predadores: Captura, contato lateral e a
@@ -32,17 +34,19 @@ import { iniciarServidor } from './servidor.js';
 import { criarTextos } from '../src/logica/textos.js';
 import { VERSAO } from '../src/logica/versao.js';
 import { DURACAO_FATO } from '../src/logica/fila-fatos.js';
-import { chaveNomeItem, chaveNomePredador } from '../src/logica/catalogo.js';
+import { chaveNomeItem, chaveNomePredador, MUNDOS } from '../src/logica/catalogo.js';
 import { SEGUNDOS_INVULNERAVEL } from '../src/logica/captura.js';
 import { SEGUNDOS_PRESO } from '../src/logica/ovelha.js';
 import { SEGUNDOS_BLOQUEIO } from '../src/logica/input.js';
 import { arredondarDecimos, SEGUNDOS_ZERAR, textoRecorde } from '../src/logica/recorde.js';
 import { chaveOpcaoPausa, LINHAS_CONTROLES } from '../src/logica/menu-pausa.js';
 import { chaveEfeito } from '../src/logica/efeitos.js';
+import { CHAVES_TELA_CREDITOS, fontesPorFase, SECOES_CREDITOS } from '../src/logica/creditos.js';
 
 const LIMITE_MS = 15_000;
 const CENA_TELA_INICIAL = 'tela-inicial';
 const CENA_MENU = 'menu';
+const CENA_CREDITOS = 'creditos';
 const CENA_FASE = 'fase';
 const CENA_PLACAR = 'placar';
 const CENA_INICIAIS = 'iniciais';
@@ -524,6 +528,59 @@ async function verificarMenu(pagina) {
   await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
   await pagina.keyboard.press('Enter');
   if (!(await esperarCena(pagina, CENA_MENU))) problemas.push('Enter na Tela inicial não reabriu o Menu');
+  return problemas;
+}
+
+/**
+ * Do Menu (cursor na Pecuária), desce dos Mundos até "Créditos" e o confirma.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, no Menu recém-aberto.
+ * @returns {Promise<boolean>} Se os Créditos abriram.
+ */
+async function abrirCreditos(pagina) {
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  for (const tecla of ['ArrowLeft', 'ArrowDown', 'Enter']) {
+    await pagina.keyboard.press(tecla);
+    await pagina.waitForTimeout(ESPERA_MS / 4);
+  }
+  return esperarCena(pagina, CENA_CREDITOS);
+}
+
+/**
+ * Os Créditos: "Créditos" no Menu os abre, com o grupo, os pacotes Kenney, o Phaser e as
+ * fontes dos Fatos de cada Fase; M silencia e mostra o ícone; Esc e o botão "Voltar"
+ * (confirmar) voltam ao Menu. Termina no Menu, com som.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, no Menu recém-aberto.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarCreditos(pagina) {
+  const problemas = [];
+  const textos = criarTextos();
+  if (!(await abrirCreditos(pagina))) return ['"Créditos" no Menu não abriu os Créditos'];
+
+  const chaves = [...CHAVES_TELA_CREDITOS, ...SECOES_CREDITOS.flatMap((secao) => [secao.chaveTitulo, ...secao.chavesLinhas])];
+  const esperados = chaves.map((chave) => textos.t(chave));
+  for (const { chaveNome, fontes } of fontesPorFase(MUNDOS)) esperados.push(textos.t(chaveNome), ...fontes);
+  const visiveis = await textosDaCena(pagina, CENA_CREDITOS);
+  for (const esperado of esperados) {
+    if (!visiveis.includes(esperado)) problemas.push(`Créditos sem o texto "${esperado}"`);
+  }
+
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('KeyM');
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  if (!(await esperarSilencio(pagina, CENA_CREDITOS, true))) problemas.push('M nos Créditos não silenciou nem mostrou o ícone');
+  await pagina.keyboard.press('KeyM');
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  if (!(await esperarSilencio(pagina, CENA_CREDITOS, false))) problemas.push('M de novo nos Créditos não devolveu o som');
+
+  await pagina.keyboard.press('Escape');
+  if (!(await esperarCena(pagina, CENA_MENU))) return [...problemas, 'Esc nos Créditos não voltou ao Menu'];
+  if (!(await abrirCreditos(pagina))) return [...problemas, '"Créditos" no Menu não reabriu os Créditos'];
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('Enter');
+  if (!(await esperarCena(pagina, CENA_MENU))) problemas.push('"Voltar" nos Créditos não voltou ao Menu');
   return problemas;
 }
 
@@ -1063,6 +1120,7 @@ async function verificarJogo(url) {
   try {
     problemas.push(...await verificarIdioma(pagina));
     problemas.push(...await verificarMenu(pagina));
+    problemas.push(...await verificarCreditos(pagina));
     await espiarEfeitos(pagina);
     await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
     await pagina.keyboard.press('Enter');
@@ -1101,4 +1159,4 @@ if (problemas.length > 0) {
   console.error(`Smoke falhou:\n- ${problemas.join('\n- ')}`);
   process.exit(1);
 }
-console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Placas, Ovelhas, Iniciais, Placar, Recorde (recarregar e zerar), Pausa, bloqueio de entrada, Volta por inatividade, efeitos sonoros e Silêncio funcionando, sem erro no console nem requisição fora da origem.');
+console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu, Créditos e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Placas, Ovelhas, Iniciais, Placar, Recorde (recarregar e zerar), Pausa, bloqueio de entrada, Volta por inatividade, efeitos sonoros e Silêncio funcionando, sem erro no console nem requisição fora da origem.');
