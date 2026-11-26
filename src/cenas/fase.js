@@ -27,6 +27,7 @@ import { calcularPlacarDaTentativa } from '../logica/placar.js';
 import { FISICA, TILE } from '../logica/pulo.js';
 import { FONTE, TEXTURA_KIWI, TEXTURA_QUADROS_TILESET, TEXTURA_SAMAMBAIA, TEXTURA_TILESET, texturaPredador } from './preload.js';
 import { lerEntrada } from './entrada.js';
+import { criarVigiaInatividade } from './inatividade.js';
 
 /** Tamanho da hitbox do Kiwi, menor que o sprite de 18×18, e seu deslocamento nele. */
 const HITBOX = Object.freeze({ largura: 10, altura: 11, x: 4, y: 7 });
@@ -176,6 +177,7 @@ export class Fase extends Phaser.Scene {
     this.cronometro = criarCronometro();
     this.physics.pause();
     this.criarHud();
+    this.inatividade = criarVigiaInatividade(this);
   }
 
   /**
@@ -184,6 +186,7 @@ export class Fase extends Phaser.Scene {
    */
   update(_tempo, delta) {
     this.acoes = this.entrada.atualizar(lerEntrada(this), delta / 1000);
+    if (this.inatividade.atualizar(this.entrada.segundosSemInput)) return;
     if (this.acoes.pausar) {
       this.abrirPausa();
       return;

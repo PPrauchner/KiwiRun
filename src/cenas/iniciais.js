@@ -9,8 +9,9 @@ import { FONTE } from './preload.js';
 import { criarDigitacao, criarIniciais, QUANTIDADE_INICIAIS, separarDigitacao } from '../logica/iniciais.js';
 import { criarInput } from '../logica/input.js';
 import { calcularPlacarDaTentativa } from '../logica/placar.js';
-import { arredondarDecimos } from '../logica/recorde.js';
+import { arredondarDecimos, INICIAIS_DA_VOLTA } from '../logica/recorde.js';
 import { lerEntrada } from './entrada.js';
+import { criarVigiaInatividade } from './inatividade.js';
 
 /** Tamanho nativo da fonte bitmap; múltiplos inteiros mantêm a pixel art nítida. */
 const TAMANHO_FONTE = 12;
@@ -60,6 +61,11 @@ export class Iniciais extends Phaser.Scene {
     this.iniciais = criarIniciais();
     this.entrada = criarInput();
     this.digitacao = criarDigitacao();
+    // As letras digitadas não passam pelo Input: contam à parte como input.
+    this.segundosSemLetra = 0;
+    this.inatividade = criarVigiaInatividade(this, {
+      aoVoltar: () => this.registry.get('recordes').gravarIniciais(this.dados.faseId, INICIAIS_DA_VOLTA),
+    });
     this.redesenhar();
   }
 
@@ -80,7 +86,10 @@ export class Iniciais extends Phaser.Scene {
     const dt = delta / 1000;
     const { estado, letras } = separarDigitacao(lerEntrada(this));
     const acoes = this.entrada.atualizar(estado, dt);
-    const gravadas = this.iniciais.atualizar(acoes, this.digitacao.atualizar(letras, dt));
+    const digitadas = this.digitacao.atualizar(letras, dt);
+    this.segundosSemLetra = digitadas.length > 0 ? 0 : this.segundosSemLetra + dt;
+    if (this.inatividade.atualizar(Math.min(this.entrada.segundosSemInput, this.segundosSemLetra))) return;
+    const gravadas = this.iniciais.atualizar(acoes, digitadas);
     if (gravadas) {
       this.registry.get('recordes').gravarIniciais(this.dados.faseId, gravadas);
       this.scene.start('placar', this.dados);

@@ -13,6 +13,7 @@ import { chaveOpcao, criarMenu, OPCOES } from '../logica/menu.js';
 import { criarInput } from '../logica/input.js';
 import { textoRecorde } from '../logica/recorde.js';
 import { lerEntrada } from './entrada.js';
+import { criarVigiaInatividade } from './inatividade.js';
 
 /** Tamanho nativo da fonte bitmap; múltiplos inteiros mantêm a pixel art nítida. */
 const TAMANHO_FONTE = 12;
@@ -50,6 +51,7 @@ export class Menu extends Phaser.Scene {
     this.objetosFases = [];
     this.mundoMostrado = null;
     this.entrada = criarInput();
+    this.inatividade = criarVigiaInatividade(this);
     this.redesenhar();
   }
 
@@ -116,7 +118,9 @@ export class Menu extends Phaser.Scene {
    * @param {number} delta - Milissegundos desde o quadro anterior.
    */
   update(_tempo, delta) {
-    const destino = this.menu.atualizar(this.entrada.atualizar(lerEntrada(this), delta / 1000));
+    const acoes = this.entrada.atualizar(lerEntrada(this), delta / 1000);
+    if (this.inatividade.atualizar(this.entrada.segundosSemInput)) return;
+    const destino = this.menu.atualizar(acoes);
     if (destino?.tela === 'fase') this.scene.start('fase', { faseId: destino.faseId });
     else if (destino) this.scene.start(destino.tela);
     else this.redesenhar();
