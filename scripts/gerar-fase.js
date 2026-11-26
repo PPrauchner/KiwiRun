@@ -4,7 +4,8 @@
  * tileset embutido e sem compressão, para que abrir e salvar no Tiled seja opcional.
  *
  * Na camada `objetos` ficam pontos: `inicio`, cada `checkpoint` (no chão) e cada `item`
- * (o id do Item no tipo do objeto), além da área `fim`.
+ * (o id do Item no tipo do objeto) e cada `samambaia` (a chave do Fato no tipo), além das
+ * áreas `fim` e `predador` (a espécie no tipo; o Predador patrulha de uma ponta à outra). A Samambaia-prateada escondida ganha uma folhagem na camada `frente` por cima.
  *
  * Recusa vãos, degraus, plataformas e Itens além das constantes do pulo, e recusa sobrescrever
  * um `.tmj` existente sem `--force` (o arquivo pode ter sido enfeitado no Tiled).
@@ -45,12 +46,29 @@ const ALTURA_FIM = 3;
  */
 
 /**
+ * @typedef {Object} SamambaiaNoMapa
+ * @property {number} coluna - Coluna da Samambaia-prateada; precisa ter chão.
+ * @property {string} chave - Chave do Fato que ela revela.
+ * @property {number} alturaSobreChao - Tile contado do chão: 1 é o tile logo acima.
+ * @property {boolean} [escondida] - Se fica atrás de uma folhagem da camada `frente`.
+ */
+
+/**
+ * @typedef {Object} PredadorNoMapa
+ * @property {string} especie - Espécie de Predador do catálogo.
+ * @property {number} de - Primeira coluna da patrulha.
+ * @property {number} ate - Última coluna da patrulha; de `de` a `ate` o chão é plano.
+ */
+
+/**
  * @typedef {Object} DescricaoFase
  * @property {number} altura - Altura do mapa, em tiles.
  * @property {Trecho[]} trechos - Da esquerda para a direita; o primeiro e o último são chão.
  * @property {Plataforma[]} plataformas - Plataformas de mão única.
  * @property {ItemNoMapa[]} [itens] - Itens a coletar.
  * @property {number[]} [checkpoints] - Colunas dos Checkpoints, além do início.
+ * @property {SamambaiaNoMapa[]} [samambaias] - As Samambaias-prateadas da Fase.
+ * @property {PredadorNoMapa[]} [predadores] - Os Predadores e suas patrulhas.
  */
 
 /**
@@ -204,6 +222,25 @@ export function gerarMapa(descricao) {
       throw new Error(`item ${item} ${alturaSobreChao} tiles acima do chão na coluna ${coluna}: o Kiwi alcança ${alturaMaximaItem}`);
     }
     objetos.push(ponto('item', item, coluna, (topo(coluna) - alturaSobreChao + 0.5) * TILE));
+  }
+
+  for (const { coluna, chave, alturaSobreChao, escondida } of descricao.samambaias ?? []) {
+    if (!chao[coluna]) throw new Error(`samambaia ${chave} na coluna ${coluna} sem chão embaixo`);
+    if (alturaSobreChao < 1 || alturaSobreChao > alturaMaximaItem) {
+      throw new Error(`samambaia ${chave} ${alturaSobreChao} tiles acima do chão na coluna ${coluna}: o Kiwi alcança ${alturaMaximaItem}`);
+    }
+    const linha = topo(coluna) - alturaSobreChao;
+    if (escondida) frente.pintar(coluna, linha, TILES.folhagem);
+    objetos.push(ponto('samambaia', chave, coluna, (linha + 0.5) * TILE));
+  }
+  for (const { especie, de, ate } of descricao.predadores ?? []) {
+    const colunas = chao.slice(de, ate + 1);
+    const plano = colunas.length === ate - de + 1 && colunas.every((alturaChao) => alturaChao > 0 && alturaChao === colunas[0]);
+    if (!plano) throw new Error(`predador ${especie} entre as colunas ${de} e ${ate}: a patrulha pede chão plano, sem vão`);
+    objetos.push({
+      height: TILE, name: 'predador', rotation: 0, type: especie, visible: true,
+      width: (ate - de + 1) * TILE, x: de * TILE, y: (topo(de) - 1) * TILE,
+    });
   }
   objetos.forEach((objeto, indice) => { objeto.id = indice + 1; });
 

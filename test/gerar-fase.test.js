@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { gerarMapa } from '../scripts/gerar-fase.js';
 import { PULO, TILE } from '../src/logica/pulo.js';
-import { buscarFase } from '../src/logica/catalogo.js';
+import { PREDADORES, buscarFase } from '../src/logica/catalogo.js';
 
 const SCRIPT = fileURLToPath(new URL('../scripts/gerar-fase.js', import.meta.url));
 
@@ -201,4 +201,64 @@ test('a Pecuária versionada tem Checkpoint e só Itens do tema que o catálogo 
   assert.ok(tipos.length > 0);
   assert.deepEqual([...new Set(tipos)].sort(), [...buscarFase('pecuaria').itens].sort());
   assert.ok(objetosChamados(mapa, 'checkpoint').length > 0);
+});
+
+test('cada Samambaia-prateada vira um ponto "samambaia" com a chave do Fato no tipo', () => {
+  const mapa = gerarMapa(descricao({ samambaias: [{ coluna: 5, chave: 'fato.teste.1', alturaSobreChao: 2 }] }));
+  const [samambaia] = objetosChamados(mapa, 'samambaia');
+
+  assert.deepEqual(
+    { type: samambaia.type, x: samambaia.x, y: samambaia.y, point: samambaia.point },
+    { type: 'fato.teste.1', x: 5.5 * TILE, y: (mapa.height - 3 - 1.5) * TILE, point: true },
+  );
+});
+
+test('a Samambaia-prateada escondida fica atrás de um tile da camada frente', () => {
+  const visivel = gerarMapa(descricao({ samambaias: [{ coluna: 5, chave: 'fato.teste.1', alturaSobreChao: 1 }] }));
+  const escondida = gerarMapa(descricao({ samambaias: [{ coluna: 5, chave: 'fato.teste.1', alturaSobreChao: 1, escondida: true }] }));
+  const tileDaFrente = (mapa) => {
+    const frente = mapa.layers.find((camada) => camada.name === 'frente');
+    return frente.data[(mapa.height - 3 - 1) * mapa.width + 5];
+  };
+
+  assert.equal(tileDaFrente(visivel), 0);
+  assert.ok(tileDaFrente(escondida) > 0);
+});
+
+test('Samambaia-prateada sobre um vão ou fora do alcance do pulo é recusada', () => {
+  assert.throws(() => gerarMapa(descricao({ samambaias: [{ coluna: 10, chave: 'fato.teste.1', alturaSobreChao: 1 }] })), /samambaia/i);
+  const altoDemais = PULO.segurado.altura + 2;
+  assert.throws(() => gerarMapa(descricao({ samambaias: [{ coluna: 4, chave: 'fato.teste.1', alturaSobreChao: altoDemais }] })), /samambaia/i);
+});
+
+test('a Pecuária versionada tem uma Samambaia-prateada escondida atrás da camada frente', async () => {
+  const mapa = JSON.parse(await readFile(new URL('../assets/mapas/pecuaria.tmj', import.meta.url), 'utf8'));
+  const frente = mapa.layers.find((camada) => camada.name === 'frente');
+  const atrasDaFrente = objetosChamados(mapa, 'samambaia')
+    .filter(({ x, y }) => frente.data[Math.floor(y / TILE) * mapa.width + Math.floor(x / TILE)] > 0);
+
+  assert.equal(atrasDaFrente.length, 1);
+});
+
+test('cada Predador vira uma área "predador" com a espécie no tipo, um tile acima do chão entre as colunas da patrulha', () => {
+  const mapa = gerarMapa(descricao({ predadores: [{ especie: 'rato', de: 3, ate: 7 }] }));
+  const [predador] = objetosChamados(mapa, 'predador');
+
+  assert.deepEqual(
+    { type: predador.type, x: predador.x, y: predador.y, width: predador.width, height: predador.height },
+    { type: 'rato', x: 3 * TILE, y: (mapa.height - 3 - 1) * TILE, width: 5 * TILE, height: TILE },
+  );
+});
+
+test('patrulha de Predador sobre um vão ou um degrau é recusada', () => {
+  assert.throws(() => gerarMapa(descricao({ predadores: [{ especie: 'rato', de: 8, ate: 13 }] })), /predador/i);
+  const comDegrau = descricao({ trechos: [{ chao: 5, altura: 3 }, { chao: 5, altura: 4 }] });
+  assert.throws(() => gerarMapa({ ...comDegrau, predadores: [{ especie: 'rato', de: 2, ate: 7 }] }), /predador/i);
+});
+
+test('a Pecuária versionada tem Predadores das três espécies do catálogo', async () => {
+  const mapa = JSON.parse(await readFile(new URL('../assets/mapas/pecuaria.tmj', import.meta.url), 'utf8'));
+  const especies = objetosChamados(mapa, 'predador').map((objeto) => objeto.type);
+
+  assert.deepEqual([...new Set(especies)].sort(), [...PREDADORES].sort());
 });

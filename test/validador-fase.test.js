@@ -10,8 +10,8 @@ import { DICIONARIOS as TEXTOS } from '../src/logica/textos.js';
 import { validarCatalogo, validarFase } from '../src/logica/validador-fase.js';
 
 const DICIONARIOS = {
-  pt: { 'fato.teste.1': 'um', 'fato.teste.2': 'dois', 'fato.teste.3': 'três' },
-  en: { 'fato.teste.1': 'one', 'fato.teste.2': 'two', 'fato.teste.3': 'three' },
+  pt: { 'fato.teste.1': 'um', 'fato.teste.2': 'dois', 'fato.teste.3': 'três', 'predador.rato': 'Rato' },
+  en: { 'fato.teste.1': 'one', 'fato.teste.2': 'two', 'fato.teste.3': 'three', 'predador.rato': 'Rat' },
 };
 const CONTEXTO = { dicionarios: DICIONARIOS, predadores: ['rato'] };
 
@@ -144,6 +144,13 @@ test('espécie de Predador fora do catálogo é problema', () => {
   assert.deepEqual(regras(validarFase(faseValida(), mapa, CONTEXTO)), ['predador']);
 });
 
+test('espécie de Predador do mapa sem nome num idioma é problema', () => {
+  const contexto = { ...CONTEXTO, dicionarios: { ...DICIONARIOS, en: { ...DICIONARIOS.en } } };
+  delete contexto.dicionarios.en['predador.rato'];
+
+  assert.deepEqual(regras(validarFase(faseValida(), mapaValido(), contexto)), ['predador-sem-texto']);
+});
+
 test('objeto fora do mapa é problema', () => {
   const mapa = mapaValido();
   objetos(mapa)[2].x = 10 * 18 + 1;
@@ -227,15 +234,8 @@ function lerMapaDoRepo(caminho) {
   }
 }
 
-/**
- * Tolerância temporária: a Pecuária ainda não tem Samambaias-prateadas. A fatia de
- * Samambaias-prateadas remove esta exceção.
- */
-const TOLERADOS = [{ fase: 'pecuaria', regra: 'samambaias' }];
-
 test('o mapa de cada Fase do catálogo passa no Validador de Fase', () => {
-  const problemas = validarCatalogo(MUNDOS, lerMapaDoRepo, { dicionarios: TEXTOS, predadores: PREDADORES })
-    .filter((problema) => !TOLERADOS.some(({ fase, regra }) => problema.fase === fase && problema.regra === regra));
+  const problemas = validarCatalogo(MUNDOS, lerMapaDoRepo, { dicionarios: TEXTOS, predadores: PREDADORES });
 
   const relatorio = problemas.map(({ fase, mensagem }) => `- ${fase}: ${mensagem}`).join('\n');
   assert.equal(problemas.length, 0, `Fases com problemas:\n${relatorio}`);

@@ -61,7 +61,7 @@ export const MUNDOS = Object.freeze([
         emBreve: false,
         mapa: 'assets/mapas/pecuaria.tmj',
         itens: ['la', 'leite'],
-        chavesFato: [],
+        chavesFato: ['fato.pecuaria.1', 'fato.pecuaria.2', 'fato.pecuaria.3'],
         tempoReferencia: 60,
       },
       faseEmBreve('porto'),
@@ -78,6 +78,24 @@ export const MUNDOS = Object.freeze([
  * @type {readonly string[]}
  */
 export const PREDADORES = Object.freeze(['arminho', 'gamba', 'rato']);
+
+/**
+ * @param {string} especie - Espécie de Predador do catálogo.
+ * @returns {string} A chave do nome da espécie nos Textos.
+ */
+export function chaveNomePredador(especie) {
+  return `predador.${especie}`;
+}
+
+/**
+ * Caminho do sprite de uma espécie de Predador, gerado por script, a partir da raiz do site.
+ *
+ * @param {string} especie - Espécie de Predador do catálogo.
+ * @returns {string} O caminho do PNG 18×18.
+ */
+export function imagemPredador(especie) {
+  return `assets/sprites/predadores/${especie}.png`;
+}
 
 /**
  * Busca uma Fase pelo id, em qualquer Mundo.

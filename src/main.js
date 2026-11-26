@@ -4,14 +4,27 @@
  * O Phaser vem vendorizado como script global (`vendor/phaser/`), sem etapa de build.
  */
 import { criarTextos } from './logica/textos.js';
+import { criarTeclado, TECLAS } from './logica/input.js';
 import { Preload } from './cenas/preload.js';
 import { TelaInicial } from './cenas/tela-inicial.js';
+import { Menu } from './cenas/menu.js';
 import { Fase } from './cenas/fase.js';
 import { FISICA } from './logica/pulo.js';
 
 /** Resolução interna; o Phaser escala para caber na janela, com barras fora de 16:9. */
 const LARGURA = 640;
 const ALTURA = 360;
+
+// Um registro de teclas para o jogo inteiro, para a tecla segurada numa troca de tela
+// continuar segurada e o Input da tela nova travá-la. As teclas do jogo não rolam a página.
+const teclado = criarTeclado();
+window.addEventListener('keydown', (evento) => {
+  if (!Object.hasOwn(TECLAS, evento.code)) return;
+  evento.preventDefault();
+  if (!evento.repeat) teclado.apertar(evento.code);
+});
+window.addEventListener('keyup', (evento) => teclado.soltar(evento.code));
+window.addEventListener('blur', () => teclado.soltarTudo());
 
 const jogo = new Phaser.Game({
   type: Phaser.AUTO,
@@ -29,9 +42,12 @@ const jogo = new Phaser.Game({
     arcade: { gravity: { y: FISICA.gravidade }, fps: FISICA.passosPorSegundo, fixedStep: true },
   },
   callbacks: {
-    preBoot: (instancia) => instancia.registry.set('textos', criarTextos()),
+    preBoot: (instancia) => {
+      instancia.registry.set('textos', criarTextos());
+      instancia.registry.set('teclado', teclado);
+    },
   },
-  scene: [Preload, TelaInicial, Fase],
+  scene: [Preload, TelaInicial, Menu, Fase],
 });
 
 // Exposto para o smoke (Playwright) inspecionar a cena ativa.

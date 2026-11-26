@@ -1,16 +1,16 @@
 /**
  * @file Tela inicial: "Kia ora!", o convite a apertar um botão e a versão num canto;
- * qualquer tecla abre a Pecuária.
+ * confirmar (botão frontal, Start, Enter ou Espaço) abre o Menu.
  */
 import { FONTE } from './preload.js';
 import { VERSAO } from '../logica/versao.js';
+import { criarInput } from '../logica/input.js';
+import { lerEntrada } from './entrada.js';
 
 /** Tamanho nativo da fonte bitmap; múltiplos inteiros mantêm a pixel art nítida. */
 const TAMANHO_FONTE = 12;
 const MARGEM = 6;
 const COR_DISCRETA = 0x8899aa;
-/** A Fase que qualquer tecla abre, até o Menu chegar. */
-const FASE_INICIAL = 'pecuaria';
 
 export class TelaInicial extends Phaser.Scene {
   constructor() {
@@ -32,13 +32,16 @@ export class TelaInicial extends Phaser.Scene {
       .setOrigin(1)
       .setTint(COR_DISCRETA);
 
-    // Ignora a repetição de uma tecla que já vinha segurada da Fase.
-    const teclado = this.input.keyboard;
-    const abrirFase = (evento) => {
-      if (evento.repeat) return;
-      teclado.off('keydown', abrirFase);
-      this.scene.start('fase', { faseId: FASE_INICIAL });
-    };
-    teclado.on('keydown', abrirFase);
+    this.entrada = criarInput();
+  }
+
+  /**
+   * @param {number} _tempo - Relógio do jogo, em ms (não usado).
+   * @param {number} delta - Milissegundos desde o quadro anterior.
+   */
+  update(_tempo, delta) {
+    if (this.entrada.atualizar(lerEntrada(this), delta / 1000).confirmar) {
+      this.scene.start('menu');
+    }
   }
 }

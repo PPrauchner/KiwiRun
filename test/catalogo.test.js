@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MUNDOS, buscarFase } from '../src/logica/catalogo.js';
+import { MUNDOS, PREDADORES, buscarFase, chaveNomePredador } from '../src/logica/catalogo.js';
 import { DICIONARIOS } from '../src/logica/textos.js';
 
 const ASSUNTOS = ['geografia', 'culinaria', 'curiosidades', 'historia', 'economia-tecnologia', 'fauna-flora'];
@@ -43,5 +43,13 @@ test('todo nome de Mundo e de Fase existe nos textos dos dois idiomas', () => {
 
   for (const [idioma, dicionario] of Object.entries(DICIONARIOS)) {
     for (const chave of chaves) assert.ok(Object.hasOwn(dicionario, chave), `${idioma} sem ${chave}`);
+  }
+});
+
+test('toda espécie de Predador do catálogo tem nome nos textos dos dois idiomas', () => {
+  for (const [idioma, dicionario] of Object.entries(DICIONARIOS)) {
+    for (const especie of PREDADORES) {
+      assert.ok(Object.hasOwn(dicionario, chaveNomePredador(especie)), `${idioma} sem o nome de ${especie}`);
+    }
   }
 });

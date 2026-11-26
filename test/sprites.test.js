@@ -7,8 +7,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { TILE } from '../src/logica/pulo.js';
 import { COLUNAS, IMAGEM, LICENCA, QUANTIDADE } from '../scripts/tileset.js';
-import { QUADROS_KIWI } from '../scripts/gerar-sprites.js';
-import { MUNDOS, imagemItem } from '../src/logica/catalogo.js';
+import { IMAGEM_SAMAMBAIA, QUADROS_KIWI } from '../scripts/gerar-sprites.js';
+import { MUNDOS, PREDADORES, imagemItem, imagemPredador } from '../src/logica/catalogo.js';
 
 /**
  * Lê largura e altura do cabeçalho de um PNG.
@@ -48,5 +48,18 @@ test('todo Item que o catálogo declara tem seu sprite 18×18 gerado', async () 
   for (const item of itens) {
     const { largura, altura } = await dimensoes(imagemItem(item));
     assert.deepEqual([largura, altura], [TILE, TILE], item);
+  }
+});
+
+test('a Samambaia-prateada tem seu sprite 18×18 gerado', async () => {
+  const { largura, altura } = await dimensoes(IMAGEM_SAMAMBAIA);
+
+  assert.deepEqual([largura, altura], [TILE, TILE]);
+});
+
+test('toda espécie de Predador do catálogo tem seu sprite 18×18 gerado', async () => {
+  for (const especie of PREDADORES) {
+    const { largura, altura } = await dimensoes(imagemPredador(especie));
+    assert.deepEqual([largura, altura], [TILE, TILE], especie);
   }
 });
