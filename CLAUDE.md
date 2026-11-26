@@ -26,8 +26,6 @@ apresentação de grupo (28/11/2026). Bilíngue (PT/EN), teclado e controle 8Bit
 
 ## Armadilhas conhecidas
 
-- **Smoke**: a checagem "a invulnerabilidade não acabou depois de ~1 s" já falha na
-  `dev`; não é regressão de quem a encontra.
 - **Áudio no smoke**: o Chromium headless não inicia áudio a partir de input
   simulado (precisa de `--autoplay-policy=no-user-gesture-required`), e o Chrome só
   atualiza o `.value` do ganho de mute do Phaser com um som tocando — toque um som

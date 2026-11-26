@@ -430,6 +430,8 @@ async function verificarPredadores(pagina, levarKiwi, checkpoint) {
   await pagina.waitForTimeout(50);
   const atravessou = await estadoDaFase(pagina);
   if (Math.abs(atravessou.x - checkpoint.x) <= 4) problemas.push('invulnerável, o contato lateral ainda devolveu o Kiwi ao Checkpoint');
+  // Longe dos Predadores: parado dentro de um, o fim da invulnerabilidade o devolve ao Checkpoint de novo.
+  await levarKiwi(checkpoint.x, checkpoint.y - 9);
   await pagina.waitForTimeout(SEGUNDOS_INVULNERAVEL * 1000 + ESPERA_MS);
   if ((await estadoDaFase(pagina)).invulneravel !== 0) problemas.push('a invulnerabilidade não acabou depois de ~1 s');
   return problemas;
