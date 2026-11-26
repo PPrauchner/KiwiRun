@@ -29,7 +29,8 @@ test('todo caractere dos textos, nos dois idiomas, existe na fonte bitmap', asyn
   for (const idioma of Object.keys(DICIONARIOS)) {
     textos.definirIdioma(idioma);
     for (const chave of Object.keys(DICIONARIOS[idioma])) {
-      for (const caractere of textos.t(chave, { versao: VERSAO })) {
+      // Os parâmetros que sobram, como `{nome}`, são trocados antes de desenhar.
+      for (const caractere of textos.t(chave, { versao: VERSAO }).replace(/\{\w+\}/g, '')) {
         if (!naFonte.has(caractere)) faltando.add(caractere);
       }
     }

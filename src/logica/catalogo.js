@@ -126,6 +126,14 @@ export function proximaFase(id, mundos = MUNDOS) {
 }
 
 /**
+ * @param {string} item - Id do Item.
+ * @returns {string} A chave do nome do Item nos Textos.
+ */
+export function chaveNomeItem(item) {
+  return `item.${item}`;
+}
+
+/**
  * Caminho do sprite de um Item, gerado por script, a partir da raiz do site.
  *
  * @param {string} item - Id do Item.

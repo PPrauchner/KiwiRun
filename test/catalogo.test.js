@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MUNDOS, PREDADORES, buscarFase, chaveNomePredador, proximaFase } from '../src/logica/catalogo.js';
+import { MUNDOS, PREDADORES, buscarFase, chaveNomeItem, chaveNomePredador, proximaFase } from '../src/logica/catalogo.js';
 import { DICIONARIOS } from '../src/logica/textos.js';
 
 const ASSUNTOS = ['geografia', 'culinaria', 'curiosidades', 'historia', 'economia-tecnologia', 'fauna-flora'];
@@ -68,4 +68,12 @@ test('a próxima Fase é a seguinte do mesmo Mundo, se jogável', () => {
 
 test('depois da Pecuária não há Fase disponível: o Porto está em breve', () => {
   assert.equal(proximaFase('pecuaria'), null);
+});
+
+test('todo Item das Fases do catálogo tem nome nos textos dos dois idiomas', () => {
+  const itens = new Set(MUNDOS.flatMap((mundo) => mundo.fases.flatMap((fase) => fase.itens)));
+
+  for (const [idioma, dicionario] of Object.entries(DICIONARIOS)) {
+    for (const item of itens) assert.ok(Object.hasOwn(dicionario, chaveNomeItem(item)), `${idioma} sem o nome de ${item}`);
+  }
 });
