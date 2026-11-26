@@ -63,12 +63,13 @@ export function criarCronometro() {
  * Formata um Tempo gasto para o HUD e o Placar: `m:ss.d`, truncado no décimo.
  *
  * @param {number} segundos - O tempo, em segundos.
+ * @param {string} [separadorDecimal] - O separador dos décimos no idioma; o padrão é `.`.
  * @returns {string} O tempo formatado, por exemplo `1:05.9`.
  */
-export function formatarTempo(segundos) {
+export function formatarTempo(segundos, separadorDecimal = '.') {
   // Arredonda a 1e-6 antes de truncar, para 7.3 não virar 7.2999… e mostrar 7.2.
   const decimos = Math.floor(Math.round(segundos * 1e7) / 1e6);
   const minutos = Math.floor(decimos / 600);
   const resto = (decimos % 600) / 10;
-  return `${minutos}:${resto.toFixed(1).padStart(4, '0')}`;
+  return `${minutos}:${resto.toFixed(1).padStart(4, '0').replace('.', separadorDecimal)}`;
 }

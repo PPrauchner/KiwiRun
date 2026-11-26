@@ -75,3 +75,8 @@ test('o Tempo gasto aparece em minutos, segundos e décimos, truncado', () => {
   assert.equal(formatarTempo(7.49), '0:07.4');
   assert.equal(formatarTempo(65.99), '1:05.9');
 });
+
+test('o Tempo gasto pode sair com o separador decimal do idioma', () => {
+  assert.equal(formatarTempo(65.99, ','), '1:05,9');
+  assert.equal(formatarTempo(65.99, '.'), '1:05.9');
+});
