@@ -96,7 +96,8 @@ export class Placar extends Phaser.Scene {
   criarResumo() {
     const { placar } = this;
     const linhas = [
-      ['placar.tempo_gasto', this.tempo(placar.tempoGasto)],
+      // Em décimos arredondados, como o Tempo final: a conta da tela fecha.
+      ['placar.tempo_gasto', this.tempo(arredondarDecimos(placar.tempoGasto))],
       ['placar.desconto_itens', `-${this.tempo(placar.descontoItens)}`],
       ['placar.desconto_capturas', `-${this.tempo(placar.descontoCapturas)}`],
       ['placar.desconto_samambaias', `-${this.tempo(placar.descontoSamambaias)}`],
