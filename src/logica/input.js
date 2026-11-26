@@ -142,13 +142,18 @@ function controlesAtivos({ teclas, gamepads }) {
  */
 
 /**
- * Cria o Input de uma tela. Nos primeiros `SEGUNDOS_BLOQUEIO` ele ignora tudo; depois só
+ * Cria o Input de uma tela. Nos primeiros `segundosBloqueio` ele ignora tudo; depois só
  * aceita aperto novo: um controle que já vinha segurado precisa ser solto antes de valer.
+ * Com `segundosBloqueio` 0 (a Fase de volta da Pausa), só o que já vinha segurado no
+ * primeiro quadro fica travado.
  *
+ * @param {{ segundosBloqueio?: number }} [opcoes] - Duração do bloqueio; padrão
+ *   `SEGUNDOS_BLOQUEIO`.
  * @returns {Input} O Input.
  */
-export function criarInput() {
+export function criarInput({ segundosBloqueio = SEGUNDOS_BLOQUEIO } = {}) {
   let segundos = 0;
+  let primeiroQuadro = true;
   /** Controles segurados durante o bloqueio, ignorados até serem soltos. */
   let travados = new Set();
   let anteriores = new Set();
@@ -174,7 +179,8 @@ export function criarInput() {
       return segundosSemInput;
     },
     atualizar(estado, dt) {
-      const bloqueado = segundos < SEGUNDOS_BLOQUEIO;
+      const bloqueado = primeiroQuadro || segundos < segundosBloqueio;
+      primeiroQuadro = false;
       segundos += dt;
       const todos = controlesAtivos(estado);
       registrarAtividade(new Set(todos.keys()), dt);

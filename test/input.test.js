@@ -191,6 +191,18 @@ test('bloqueio: direção segurada desde a tela anterior só move depois de solt
   assert.equal(quadro(input, direita).horizontal, 1);
 });
 
+test('sem bloqueio (sair da Pausa): o que vinha segurado fica travado, um aperto novo vale já', () => {
+  const input = criarInput({ segundosBloqueio: 0 });
+
+  const segurado = quadro(input, { teclas: ['Escape', 'ArrowRight'] });
+  assert.equal(segurado.pausar || segurado.voltar, false);
+  assert.equal(segurado.horizontal, 0);
+
+  const novo = quadro(input, { teclas: ['Escape', 'ArrowRight', 'Space'] });
+  assert.equal(novo.pular, true);
+  assert.equal(novo.pausar || novo.horizontal !== 0, false);
+});
+
 test('último input: sem nada mudar, o tempo sem input cresce', () => {
   const input = inputLiberado();
   quadro(input, {}, 2);
