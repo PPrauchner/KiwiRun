@@ -8,7 +8,9 @@ import { andamentosDoJogo, chaveMusica, faixaMusica } from '../logica/musica.js'
 import { aplicarSilencio } from './silencio.js';
 
 export const FONTE = 'kiwirun';
+/** Os tilesets das Fases: a chave da textura é o nome do tileset no `.tmj`. */
 export const TEXTURA_TILESET = 'tileset';
+export const TEXTURA_TILESET_PORTO = 'porto';
 export const TEXTURA_KIWI = 'kiwi';
 export const TEXTURA_SAMAMBAIA = 'samambaia';
 export const TEXTURA_OVELHA = 'ovelha';
@@ -40,6 +42,7 @@ export class Preload extends Phaser.Scene {
   preload() {
     this.load.bitmapFont(FONTE, 'assets/fonte/kiwirun.png', 'assets/fonte/kiwirun.xml');
     this.load.image(TEXTURA_TILESET, 'assets/tiles/tileset.png');
+    this.load.image(TEXTURA_TILESET_PORTO, 'assets/tiles/porto.png');
     this.load.spritesheet(TEXTURA_QUADROS_TILESET, 'assets/tiles/tileset.png', { frameWidth: QUADRO, frameHeight: QUADRO });
     this.load.spritesheet(TEXTURA_KIWI, 'assets/sprites/kiwi.png', { frameWidth: QUADRO, frameHeight: QUADRO });
     this.load.image(TEXTURA_SAMAMBAIA, 'assets/sprites/samambaia.png');

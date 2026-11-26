@@ -33,7 +33,7 @@ import { calcularPlacarDaTentativa } from '../logica/placar.js';
 import { FISICA, TILE } from '../logica/pulo.js';
 import { criarVigiaPreso } from '../logica/ovelha.js';
 import { acaoDaPlaca, BOTOES, BOTOES_DA_ACAO } from '../logica/placa.js';
-import { FONTE, TEXTURA_BOTOES, TEXTURA_KIWI, TEXTURA_OVELHA, TEXTURA_QUADROS_TILESET, TEXTURA_SAMAMBAIA, TEXTURA_TILESET, texturaPredador } from './preload.js';
+import { FONTE, TEXTURA_BOTOES, TEXTURA_KIWI, TEXTURA_OVELHA, TEXTURA_QUADROS_TILESET, TEXTURA_SAMAMBAIA, texturaPredador } from './preload.js';
 import { lerEntrada } from './entrada.js';
 import { criarVigiaInatividade } from './inatividade.js';
 import { criarControleSilencio } from './silencio.js';
@@ -144,10 +144,11 @@ export class Fase extends Phaser.Scene {
 
   create() {
     const mapa = this.make.tilemap({ key: this.chaveMapa });
-    const tileset = mapa.addTilesetImage(mapa.tilesets[0].name, TEXTURA_TILESET);
-    mapa.createLayer('fundo', tileset);
-    const colisao = mapa.createLayer('colisao', tileset);
-    const frente = mapa.createLayer('frente', tileset);
+    // Cada tileset do mapa (o Kenney e, no Porto, o do cais) usa a textura de mesmo nome.
+    const tilesets = mapa.tilesets.map(({ name }) => mapa.addTilesetImage(name, name));
+    mapa.createLayer('fundo', tilesets);
+    const colisao = mapa.createLayer('colisao', tilesets);
+    const frente = mapa.createLayer('frente', tilesets);
     colisao.setCollisionByExclusion([-1]);
     colisao.forEachTile((tile) => {
       if (tile.index >= 0 && ehUmaMao(tile)) tile.setCollision(false, false, true, false);
