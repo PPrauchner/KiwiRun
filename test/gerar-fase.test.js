@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { gerarMapa } from '../scripts/gerar-fase.js';
 import { FISICA, PULO, TILE } from '../src/logica/pulo.js';
 import { PREDADORES, buscarFase } from '../src/logica/catalogo.js';
+import { NOME, TILESET_PORTO } from '../scripts/tileset.js';
 
 const SCRIPT = fileURLToPath(new URL('../scripts/gerar-fase.js', import.meta.url));
 
@@ -327,4 +328,56 @@ test('a Pecuária versionada tem Ovelhas e Checkpoints a no máximo ~20 s de per
 
   assert.ok(objetosChamados(mapa, 'ovelha').length > 0);
   marcos.slice(1).forEach((x, i) => assert.ok(x - marcos[i] <= maiorDistancia, `${marcos[i]} → ${x}`));
+});
+
+/** O gid na camada `nome` do mapa, na coluna e na linha dadas. */
+function gidEm(mapa, nome, coluna, linha) {
+  return mapa.layers.find((camada) => camada.name === nome).data[linha * mapa.width + coluna];
+}
+
+/** O tileset do mapa a que um gid pertence: o de maior `firstgid` que não passa dele. */
+function tilesetDoGid(mapa, gid) {
+  return mapa.tilesets.filter((tileset) => tileset.firstgid <= gid).sort((a, b) => b.firstgid - a.firstgid)[0];
+}
+
+test('sem piso de cais, o mapa só embute o tileset Kenney', () => {
+  assert.deepEqual(gerarMapa(descricao()).tilesets.map((tileset) => tileset.name), [NOME]);
+});
+
+test('o piso de cais pinta o chão com o concreto do tileset do Porto, embutido depois do Kenney', () => {
+  const mapa = gerarMapa(descricao({ piso: 'cais' }));
+  const topoDoChao = mapa.height - 3;
+  const [kenney, porto] = mapa.tilesets;
+
+  assert.deepEqual(mapa.tilesets.map((tileset) => tileset.name), [NOME, TILESET_PORTO.nome]);
+  assert.equal(porto.firstgid, kenney.firstgid + kenney.tilecount);
+  assert.equal(porto.source, undefined);
+  for (const linha of [topoDoChao, topoDoChao + 1]) {
+    assert.equal(tilesetDoGid(mapa, gidEm(mapa, 'colisao', 4, linha)).name, TILESET_PORTO.nome);
+  }
+});
+
+test('no cais, o vão mostra o mar no fundo, sem nada sólido', () => {
+  const mapa = gerarMapa(descricao({ piso: 'cais' }));
+
+  assert.ok(gidEm(mapa, 'fundo', 10, mapa.height - 1) > 0);
+  assert.equal(gidEm(mapa, 'colisao', 10, mapa.height - 1), 0);
+});
+
+test('a pilha de contêineres é sólida sobre o chão, da altura e largura pedidas, no tileset do Porto', () => {
+  const mapa = gerarMapa(descricao({ piso: 'cais', conteineres: [{ coluna: 3, largura: 2, altura: 3 }] }));
+  const topoDoChao = mapa.height - 3;
+
+  for (const coluna of [3, 4]) {
+    for (let linha = topoDoChao - 3; linha < topoDoChao; linha += 1) {
+      assert.equal(tilesetDoGid(mapa, gidEm(mapa, 'colisao', coluna, linha)).name, TILESET_PORTO.nome, `${coluna},${linha}`);
+    }
+    assert.equal(gidEm(mapa, 'colisao', coluna, topoDoChao - 4), 0);
+  }
+  assert.equal(gidEm(mapa, 'colisao', 5, topoDoChao - 1), 0);
+});
+
+test('pilha de contêineres mais alta que o pulo, ou sobre um vão, é recusada', () => {
+  assert.throws(() => gerarMapa(descricao({ conteineres: [{ coluna: 3, largura: 2, altura: PULO.segurado.altura + 1 }] })), /contêiner/);
+  assert.throws(() => gerarMapa(descricao({ conteineres: [{ coluna: 9, largura: 2, altura: 1 }] })), /contêiner/);
 });

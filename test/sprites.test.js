@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { TILE } from '../src/logica/pulo.js';
-import { COLUNAS, IMAGEM, LICENCA, QUANTIDADE } from '../scripts/tileset.js';
+import { COLUNAS, IMAGEM, LICENCA, QUANTIDADE, TILESET_PORTO } from '../scripts/tileset.js';
 import { IMAGEM_BOTOES, IMAGEM_OVELHA, IMAGEM_SAMAMBAIA, IMAGEM_SILENCIO, QUADROS_KIWI } from '../scripts/gerar-sprites.js';
 import { BOTOES, BOTOES_DA_ACAO } from '../src/logica/placa.js';
 import { MUNDOS, PREDADORES, imagemItem, imagemPredador } from '../src/logica/catalogo.js';
@@ -91,4 +91,11 @@ test('os Itens do Porto, kiwifruta e caixa de exportação, têm sprite 18×18 g
     const { largura, altura } = await dimensoes(imagemItem(item));
     assert.deepEqual([largura, altura], [TILE, TILE], item);
   }
+});
+
+test('o tileset do Porto, gerado por script, tem as colunas e linhas de tiles 18×18 que o mapa declara', async () => {
+  const { largura, altura } = await dimensoes(TILESET_PORTO.imagem);
+
+  assert.equal(largura, TILESET_PORTO.colunas * TILE);
+  assert.equal(altura, Math.ceil(TILESET_PORTO.quantidade / TILESET_PORTO.colunas) * TILE);
 });
