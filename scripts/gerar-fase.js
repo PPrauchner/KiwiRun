@@ -8,10 +8,13 @@
  * `placa` (a chave do texto no tipo e a ação na propriedade `acao`, sobre um tile de placa
  * na camada `fundo`), além das
  * áreas `fim` e `predador` (a espécie no tipo; o Predador patrulha de uma ponta à outra) e `ovelha` (a
- * Ovelha anda de uma ponta à outra, plataforma móvel de mão única). A Samambaia-prateada escondida ganha uma folhagem na camada `frente` por cima.
+ * Ovelha anda de uma ponta à outra, plataforma móvel de mão única) e `esteira` (o tile de cima
+ * do chão, com o sentido na propriedade `sentido`). A Samambaia-prateada escondida ganha uma folhagem na camada `frente` por cima.
+ * No piso de cais, o chão é concreto, o mar aparece no fundo dos vãos e as pilhas de contêiner
+ * ficam sólidas na camada `colisao`, com o tileset do Porto embutido depois do Kenney.
  *
- * Recusa vãos, degraus, plataformas e Itens além das constantes do pulo, trajetos de
- * Ovelha com vão de esmagamento, e recusa sobrescrever
+ * Recusa vãos, degraus, plataformas, pilhas de contêiner e Itens além das constantes do pulo,
+ * trajetos de Ovelha com vão de esmagamento, esteiras sem sentido, e recusa sobrescrever
  * um `.tmj` existente sem `--force` (o arquivo pode ter sido enfeitado no Tiled).
  *
  * Uso: `npm run gerar:fase -- <id> [--force] [--saida <arquivo>]`.
@@ -20,6 +23,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PULO, TILE } from '../src/logica/pulo.js';
+import { SENTIDOS_ESTEIRA } from '../src/logica/esteira.js';
 import { COLUNAS, IMAGEM, NOME, QUANTIDADE, TILES, TILES_PORTO, TILESET_PORTO, UMA_MAO } from './tileset.js';
 
 const RAIZ_REPO = fileURLToPath(new URL('..', import.meta.url));
@@ -94,11 +98,19 @@ const ALTURA_LIVRE_OVELHA = 2;
  */
 
 /**
+ * @typedef {Object} EsteiraNoMapa
+ * @property {number} de - Primeira coluna da esteira.
+ * @property {number} ate - Última coluna; de `de` a `ate` o chão é plano.
+ * @property {1 | -1} sentido - Para onde ela empurra o Kiwi: 1 à direita, -1 à esquerda.
+ */
+
+/**
  * @typedef {Object} DescricaoFase
  * @property {number} altura - Altura do mapa, em tiles.
  * @property {'pasto' | 'cais'} [piso] - O chão: grama e terra (o padrão) ou o concreto do
  *   cais, com o mar no fundo dos vãos e o tileset do Porto embutido.
  * @property {ConteineresNoMapa[]} [conteineres] - Pilhas sólidas de contêineres sobre o chão.
+ * @property {EsteiraNoMapa[]} [esteiras] - As esteiras e seus sentidos.
  * @property {Trecho[]} trechos - Da esquerda para a direita; o primeiro e o último são chão.
  * @property {Plataforma[]} plataformas - Plataformas de mão única.
  * @property {ItemNoMapa[]} [itens] - Itens a coletar.
@@ -345,6 +357,16 @@ export function gerarMapa(descricao) {
       }
     }
     objetos.push(areaSobreOChao('ovelha', '', de, ate));
+  }
+  for (const { de, ate, sentido } of descricao.esteiras ?? []) {
+    if (!plano(de, ate)) throw new Error(`esteira entre as colunas ${de} e ${ate}: a esteira pede chão plano, sem vão`);
+    if (!SENTIDOS_ESTEIRA.includes(sentido)) throw new Error(`esteira entre as colunas ${de} e ${ate}: sentido ${sentido}, e não 1 ou -1`);
+    // A esteira é o tile de cima do chão: o Kiwi pisa nela.
+    objetos.push({
+      ...areaSobreOChao('esteira', '', de, ate),
+      y: topo(de) * TILE,
+      properties: [{ name: 'sentido', type: 'int', value: sentido }],
+    });
   }
   objetos.forEach((objeto, indice) => { objeto.id = indice + 1; });
 
