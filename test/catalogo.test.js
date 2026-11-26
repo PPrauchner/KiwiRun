@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MUNDOS, PREDADORES, buscarFase, chaveNomeItem, chaveNomePredador, proximaFase } from '../src/logica/catalogo.js';
+import { COMPORTAMENTO_PREDADOR, MUNDOS, PREDADORES, buscarFase, chaveNomeItem, chaveNomePredador, proximaFase } from '../src/logica/catalogo.js';
 import { DICIONARIOS } from '../src/logica/textos.js';
 
 const ASSUNTOS = ['geografia', 'culinaria', 'curiosidades', 'historia', 'economia-tecnologia', 'fauna-flora'];
@@ -58,6 +58,19 @@ test('toda espécie de Predador do catálogo tem nome nos textos dos dois idioma
       assert.ok(Object.hasOwn(dicionario, chaveNomePredador(especie)), `${idioma} sem o nome de ${especie}`);
     }
   }
+});
+
+test('o rato patrulha mais rápido e o gambá-australiano mais devagar que as outras espécies', () => {
+  const velocidade = (especie) => COMPORTAMENTO_PREDADOR[especie].velocidade;
+  for (const especie of PREDADORES.filter((outra) => outra !== 'rato')) assert.ok(velocidade('rato') > velocidade(especie), especie);
+  for (const especie of PREDADORES.filter((outra) => outra !== 'gamba')) assert.ok(velocidade('gamba') < velocidade(especie), especie);
+});
+
+test('só o rato tem patrulha curta, só o arminho dá o pulinho e só o gambá-australiano fica em plataformas altas', () => {
+  const comQuem = (campo) => PREDADORES.filter((especie) => COMPORTAMENTO_PREDADOR[especie][campo] !== undefined);
+  assert.deepEqual(comQuem('patrulhaMaxima'), ['rato']);
+  assert.deepEqual(comQuem('pulinho'), ['arminho']);
+  assert.deepEqual(comQuem('plataformaAlta'), ['gamba']);
 });
 
 test('a próxima Fase é a seguinte do mesmo Mundo, se jogável', () => {
