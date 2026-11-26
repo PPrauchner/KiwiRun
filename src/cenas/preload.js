@@ -15,6 +15,7 @@ export const TEXTURA_KIWI = 'kiwi';
 export const TEXTURA_SAMAMBAIA = 'samambaia';
 export const TEXTURA_OVELHA = 'ovelha';
 export const TEXTURA_ESTEIRA = 'esteira';
+export const TEXTURA_GUINDASTE = 'guindaste';
 /** A faixa de ícones de botão das Placas, um quadro 18×18 por botão (ordem de `BOTOES`). */
 export const TEXTURA_BOTOES = 'botoes';
 /** O ícone de som cortado, mostrado em toda cena enquanto o Silêncio estiver ligado. */
@@ -49,6 +50,7 @@ export class Preload extends Phaser.Scene {
     this.load.image(TEXTURA_SAMAMBAIA, 'assets/sprites/samambaia.png');
     this.load.image(TEXTURA_OVELHA, 'assets/sprites/ovelha.png');
     this.load.image(TEXTURA_ESTEIRA, 'assets/sprites/esteira.png');
+    this.load.image(TEXTURA_GUINDASTE, 'assets/sprites/guindaste.png');
     this.load.spritesheet(TEXTURA_BOTOES, 'assets/sprites/botoes.png', { frameWidth: QUADRO, frameHeight: QUADRO });
     for (const especie of PREDADORES) this.load.image(texturaPredador(especie), imagemPredador(especie));
     this.load.image(TEXTURA_SILENCIO, 'assets/sprites/silencio.png');
