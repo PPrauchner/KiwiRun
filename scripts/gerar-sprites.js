@@ -102,8 +102,62 @@ function desenhoLeite(x, y) {
   return x === 6 ? COR_ITEM.sombra : COR_ITEM.branco;
 }
 
+/** Paleta da Kiwifruta cortada ao meio: casca parda, polpa verde, miolo claro e sementes. */
+const COR_KIWIFRUTA = Object.freeze({
+  casca: 0x8f563b,
+  polpa: 0x6abe30,
+  polpaClara: 0x99e550,
+  miolo: 0xf4f0c8,
+  semente: 0x222034,
+});
+
+/**
+ * Kiwifruta cortada ao meio: um oval de casca parda com a polpa verde, o miolo claro e um
+ * anel de sementes pretas em volta dele.
+ *
+ * @type {Desenho}
+ */
+function desenhoKiwifruta(x, y) {
+  const raio = Math.hypot((x + 0.5 - 9) / 7.5, (y + 0.5 - 9) / 8);
+  if (raio > 1) return null;
+  if (raio > 0.85) return COR_KIWIFRUTA.casca;
+  if (raio <= 0.25) return COR_KIWIFRUTA.miolo;
+  // Oito sementes no anel em volta do miolo, uma a cada 45°.
+  const oitavos = Math.atan2(y + 0.5 - 9, x + 0.5 - 9) / (Math.PI / 4);
+  const semente = raio > 0.35 && raio <= 0.5 && Math.abs(oitavos - Math.round(oitavos)) < 0.2;
+  if (semente) return COR_KIWIFRUTA.semente;
+  return raio <= 0.6 ? COR_KIWIFRUTA.polpaClara : COR_KIWIFRUTA.polpa;
+}
+
+/** Paleta da caixa de exportação: madeira com tábuas, contorno escuro e a faixa da etiqueta. */
+const COR_CAIXA = Object.freeze({
+  madeira: 0xd9a066,
+  tabua: 0x8f563b,
+  contorno: 0x45283c,
+  etiqueta: 0xfbf236,
+});
+
+/**
+ * Caixa de exportação: caixote de madeira com borda, tábuas em X e uma etiqueta amarela.
+ *
+ * @type {Desenho}
+ */
+function desenhoCaixa(x, y) {
+  if (x < 2 || x > 15 || y < 3 || y > 16) return null;
+  if (x === 2 || x === 15 || y === 3 || y === 16) return COR_CAIXA.contorno;
+  if (x === 3 || x === 14 || y === 4 || y === 15) return COR_CAIXA.tabua;
+  if (y >= 8 && y <= 10 && x >= 6 && x <= 11) return COR_CAIXA.etiqueta;
+  if (x - 3 === y - 4 || x - 3 === 15 - y) return COR_CAIXA.tabua;
+  return COR_CAIXA.madeira;
+}
+
 /** Desenho de cada Item, pelo id do catálogo. */
-export const DESENHOS_ITENS = Object.freeze({ la: desenhoLa, leite: desenhoLeite });
+export const DESENHOS_ITENS = Object.freeze({
+  la: desenhoLa,
+  leite: desenhoLeite,
+  kiwifruta: desenhoKiwifruta,
+  caixa: desenhoCaixa,
+});
 
 export const IMAGEM_SAMAMBAIA = 'assets/sprites/samambaia.png';
 
