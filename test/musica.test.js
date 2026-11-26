@@ -22,7 +22,7 @@ test('a Pecuária toca o tema num andamento próprio, diferente do base', () => 
 });
 
 test('uma Fase sem andamento nos dados toca no andamento base', () => {
-  assert.equal(andamentoDaFase(buscarFase('porto')), ANDAMENTO_BASE);
+  assert.equal(andamentoDaFase(buscarFase('foguete')), ANDAMENTO_BASE);
 });
 
 test('o jogo tem uma faixa para o andamento base e uma para cada andamento das Fases jogáveis, sem repetir', () => {

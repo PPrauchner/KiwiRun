@@ -52,6 +52,12 @@ test('a Pecuária referencia três Fatos', () => {
   assert.equal(pecuaria.chavesFato.length, 3);
 });
 
+test('o Porto referencia três Fatos', () => {
+  const porto = MUNDOS.flatMap((mundo) => mundo.fases).find((fase) => fase.id === 'porto');
+
+  assert.equal(porto.chavesFato.length, 3);
+});
+
 test('os Fatos da Pecuária são os definitivos, sem a marca de provisório', () => {
   const pecuaria = MUNDOS.flatMap((mundo) => mundo.fases).find((fase) => fase.id === 'pecuaria');
 

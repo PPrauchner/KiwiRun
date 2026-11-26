@@ -21,9 +21,10 @@ function fase(id, chavesFato, emBreve = false) {
   return { id, chaveNome: `fase.${id}`, emBreve, mapa: null, itens: [], chavesFato, tempoReferencia: null };
 }
 
-test('a Pecuária credita a fonte dos seus Fatos uma vez só, lida do arquivo de fontes', () => {
+test('a Pecuária e o Porto creditam a fonte dos seus Fatos uma vez só, lida do arquivo de fontes', () => {
   assert.deepEqual(fontesPorFase(MUNDOS), [
     { chaveNome: 'fase.pecuaria', fontes: ['Anúncio da Série E da Halter (mar/2026)'] },
+    { chaveNome: 'fase.porto', fontes: ['MPI, SOPI de junho de 2026'] },
   ]);
 });
 

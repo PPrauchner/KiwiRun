@@ -396,3 +396,46 @@ test('esteira sobre um vão, ou com sentido que não é 1 nem -1, é recusada', 
   assert.throws(() => gerarMapa(descricao({ esteiras: [{ de: 8, ate: 13, sentido: 1 }] })), /esteira/);
   assert.throws(() => gerarMapa(descricao({ esteiras: [{ de: 2, ate: 6, sentido: 0 }] })), /esteira/);
 });
+
+test('cada guindaste vira uma área "guindaste" que vai do topo da viga no alto à base da viga embaixo', () => {
+  const mapa = gerarMapa(descricao({ guindastes: [{ coluna: 3, largura: 2, baixo: 1, alto: 5 }] }));
+  const [guindaste] = objetosChamados(mapa, 'guindaste');
+  const topoDoChao = mapa.height - 3;
+
+  assert.deepEqual(
+    { x: guindaste.x, y: guindaste.y, width: guindaste.width, height: guindaste.height },
+    { x: 3 * TILE, y: (topoDoChao - 5) * TILE, width: 2 * TILE, height: 5 * TILE },
+  );
+});
+
+test('guindaste sobre um vão, baixo demais para subir nele, ou que não sobe, é recusado', () => {
+  assert.throws(() => gerarMapa(descricao({ guindastes: [{ coluna: 9, largura: 2, baixo: 1, alto: 4 }] })), /guindaste/);
+  const baixoDemais = PULO.segurado.altura + 1;
+  assert.throws(() => gerarMapa(descricao({ guindastes: [{ coluna: 3, largura: 2, baixo: baixoDemais, alto: baixoDemais + 2 }] })), /guindaste/);
+  assert.throws(() => gerarMapa(descricao({ guindastes: [{ coluna: 3, largura: 2, baixo: 2, alto: 2 }] })), /guindaste/);
+});
+
+test('guindaste com algo sólido no trajeto ou sobre o Kiwi no alto é recusado: sem vão de esmagamento', () => {
+  const noTrajeto = [{ coluna: 3, largura: 1, alturaSobreChao: 3 }];
+  assert.throws(() => gerarMapa(descricao({ plataformas: noTrajeto, guindastes: [{ coluna: 3, largura: 2, baixo: 1, alto: 4 }] })), /esmag/);
+  const acimaNoAlto = descricao({ trechos: [{ chao: 3, altura: 3 }, { chao: 4, altura: 3 }, { chao: 3, altura: 6 }] });
+  assert.doesNotThrow(() => gerarMapa({ ...acimaNoAlto, guindastes: [{ coluna: 4, largura: 3, baixo: 1, alto: 3 }] }), 'a borda alta ao lado, na altura do topo, é o destino');
+  assert.throws(() => gerarMapa({ ...acimaNoAlto, guindastes: [{ coluna: 4, largura: 3, baixo: 1, alto: 2 }] }), /esmag/, 'a borda ao lado fica sobre o Kiwi no alto');
+});
+
+test('a descrição do Porto cabe no pulo e o .tmj versionado tem cais, guindastes, esteiras nos dois sentidos e a Placa de pular nos Predadores', async () => {
+  const { default: porto } = await import('../scripts/fases/porto.js');
+  assert.doesNotThrow(() => gerarMapa(porto));
+
+  const mapa = JSON.parse(await readFile(new URL('../assets/mapas/porto.tmj', import.meta.url), 'utf8'));
+  const sentidos = objetosChamados(mapa, 'esteira').map((esteira) => esteira.properties.find((p) => p.name === 'sentido').value);
+  const [placa] = objetosChamados(mapa, 'placa');
+  const [primeiro] = objetosChamados(mapa, 'predador').sort((a, b) => a.x - b.x);
+
+  assert.deepEqual(mapa.tilesets.map((tileset) => tileset.name), [NOME, TILESET_PORTO.nome]);
+  assert.ok(objetosChamados(mapa, 'guindaste').length > 0);
+  assert.deepEqual([...new Set(sentidos)].sort(), [-1, 1]);
+  assert.equal(placa.type, 'placa.capturar');
+  assert.ok(placa.x < primeiro.x, 'a Placa vem antes do primeiro Predador');
+  assert.deepEqual([...new Set(objetosChamados(mapa, 'item').map((item) => item.type))].sort(), [...buscarFase('porto').itens].sort());
+});
