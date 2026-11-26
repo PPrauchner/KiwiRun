@@ -120,24 +120,30 @@ test('um Mundo sem Fase jogável não deixa o cursor entrar nas Fases', () => {
   assert.equal(menu.fase, null);
 });
 
-test('abaixo dos Mundos, Créditos fica desabilitada e Voltar leva à Tela inicial', () => {
+test('abaixo dos Mundos, Créditos abre os Créditos e Voltar leva à Tela inicial', () => {
   const menu = criarMenu(MUNDOS);
 
   tocar(menu, { horizontal: -1 });
   tocar(menu, { vertical: -1 });
   assert.equal(menu.mundo.id, 'economia-tecnologia', 'os Mundos em breve não são selecionáveis');
   tocar(menu, { vertical: 1 });
-  assert.equal(menu.opcao, 'voltar');
+  assert.equal(menu.opcao, 'creditos');
   assert.equal(menu.mundo.id, 'economia-tecnologia', 'as Fases mostradas seguem as do último Mundo');
+  assert.deepEqual(tocar(menu, { confirmar: true }), { tela: 'creditos' });
+
+  tocar(menu, { vertical: 1 });
+  assert.equal(menu.opcao, 'voltar');
+  tocar(menu, { vertical: -1 });
   tocar(menu, { vertical: -1 });
   assert.equal(menu.opcao, null);
 
   tocar(menu, { vertical: 1 });
+  tocar(menu, { vertical: 1 });
   assert.deepEqual(tocar(menu, { confirmar: true }), { tela: 'tela-inicial' });
 });
 
-test('o Menu lista as opções Créditos (desabilitada) e Voltar', () => {
-  assert.deepEqual(OPCOES.map(({ id, desabilitada }) => [id, desabilitada]), [['creditos', true], ['voltar', false]]);
+test('o Menu lista as opções Créditos e Voltar, ambas habilitadas', () => {
+  assert.deepEqual(OPCOES.map(({ id, desabilitada }) => [id, desabilitada]), [['creditos', false], ['voltar', false]]);
 });
 
 test('o título, as opções, o "em breve" e o Recorde do Menu têm texto nos dois idiomas', () => {
