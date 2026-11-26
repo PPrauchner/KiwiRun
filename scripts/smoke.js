@@ -19,7 +19,9 @@
  * e desconectar o controle abrem a Pausa, "Reiniciar a Fase" com o pulo segurado recomeça do
  * zero sem o Kiwi pular, e "Menu" sai para o Menu; e a Volta por inatividade, com os tempos
  * encurtados: aviso e Volta no Menu (em EN, volta em PT), na Fase, na Pausa e no Placar, "---"
- * nas Iniciais e nenhum aviso na Tela inicial. Falha também se houver erro no console ou
+ * nas Iniciais e nenhum aviso na Tela inicial; os efeitos sonoros de pular, coletar, capturar e
+ * achar uma Samambaia-prateada; e o Silêncio: M e Select com o ícone, persistindo ao recarregar
+ * e na Volta, sem descongelar a Fase nem a Pausa, e M digitando nas Iniciais. Falha também se houver erro no console ou
  * requisição fora da origem.
  *
  * Uso: `npm run smoke`. Sai com código 1 e a lista de problemas quando algo falha.
@@ -36,6 +38,7 @@ import { SEGUNDOS_PRESO } from '../src/logica/ovelha.js';
 import { SEGUNDOS_BLOQUEIO } from '../src/logica/input.js';
 import { arredondarDecimos, SEGUNDOS_ZERAR, textoRecorde } from '../src/logica/recorde.js';
 import { chaveOpcaoPausa, LINHAS_CONTROLES } from '../src/logica/menu-pausa.js';
+import { chaveEfeito } from '../src/logica/efeitos.js';
 
 const LIMITE_MS = 15_000;
 const CENA_TELA_INICIAL = 'tela-inicial';
@@ -729,7 +732,7 @@ async function verificarRecorde(pagina) {
   await pagina.keyboard.up('ShiftLeft');
   if (!(await textosDaCena(pagina, CENA_TELA_INICIAL)).includes(confirmacao)) problemas.push(`Shift+Backspace por 3 s não mostrou "${confirmacao}"`);
   if (await lerRecorde(pagina)) problemas.push('Shift+Backspace por 3 s não zerou o Recorde');
-  const guardados = await pagina.evaluate(() => Object.keys(localStorage).filter((chave) => chave.startsWith('kiwirun:')));
+  const guardados = await pagina.evaluate(() => Object.keys(localStorage).filter((chave) => chave.startsWith('kiwirun:v1:recorde:')));
   if (guardados.length > 0) problemas.push(`zerar deixou Recordes no localStorage: ${guardados}`);
 
   await pagina.keyboard.press('Enter');
@@ -860,6 +863,145 @@ async function verificarVolta(pagina) {
 }
 
 /**
+ * Passa a registrar os efeitos sonoros tocados em `window.efeitosTocados`, até a página
+ * recarregar.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ */
+function espiarEfeitos(pagina) {
+  return pagina.evaluate(() => {
+    const { sound } = window.kiwirun.jogo;
+    const tocar = sound.play.bind(sound);
+    window.efeitosTocados = [];
+    sound.play = (chave, configuracao) => {
+      window.efeitosTocados.push(chave);
+      return tocar(chave, configuracao);
+    };
+  });
+}
+
+/**
+ * Confere que cada efeito dado tocou desde `espiarEfeitos`.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, sem recarregar desde a espia.
+ * @param {readonly string[]} efeitos - As ações cujo efeito deve ter tocado.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarEfeitos(pagina, efeitos) {
+  const tocados = await pagina.evaluate(() => window.efeitosTocados);
+  return efeitos.filter((efeito) => !tocados.includes(chaveEfeito(efeito)))
+    .map((efeito) => `o efeito "${efeito}" não tocou`);
+}
+
+/**
+ * Espera o Silêncio chegar ao estado dado: o som do jogo mudo ou não, o ícone de som cortado
+ * visível ou não na cena e o `localStorage` de acordo. O Chrome só atualiza o ganho do mute
+ * enquanto algum som passa por ele: um efeito toca para a conferência.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ * @param {string} cena - A chave da cena.
+ * @param {boolean} ligado - O estado esperado.
+ * @returns {Promise<boolean>} Se o Silêncio chegou ao estado em até `ESPERA_MS`.
+ */
+async function esperarSilencio(pagina, cena, ligado) {
+  await pagina.evaluate((chave) => window.kiwirun.jogo.sound.play(chave), chaveEfeito('coletar'));
+  return pagina.waitForFunction(({ chave, esperado }) => {
+    const { jogo } = window.kiwirun;
+    const icone = jogo.scene.getScene(chave).children.list.some((objeto) => objeto.texture?.key === 'silencio' && objeto.visible);
+    const gravado = localStorage.getItem('kiwirun:v1:silencio') === '1';
+    return jogo.sound.mute === esperado && icone === esperado && gravado === esperado;
+  }, { chave: cena, esperado: ligado }, { timeout: ESPERA_MS }).then(() => true, () => false);
+}
+
+/**
+ * Segura o Select de um controle `standard` simulado por alguns quadros e o solta.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ */
+async function apertarSelect(pagina) {
+  const definir = (apertado) => pagina.evaluate((select) => {
+    const botoes = Array.from({ length: 17 }, (_, numero) => ({ pressed: select && numero === 8, value: 0 }));
+    const controle = { index: 0, connected: true, mapping: 'standard', buttons: botoes, axes: [0, 0, 0, 0] };
+    Object.defineProperty(navigator, 'getGamepads', { value: () => [controle], configurable: true });
+  }, apertado);
+  await definir(true);
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  await definir(false);
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+}
+
+/**
+ * O Silêncio: M na Tela inicial silencia, grava no `localStorage` e mostra o ícone; ele
+ * sobrevive a recarregar a página e à Volta por inatividade; na Fase congelada, M o desliga sem
+ * dar a partida; na Pausa, M volta a silenciar sem descongelar a Fase (o ícone dela acompanha);
+ * nas Iniciais, M digita e não silencia, e o Select silencia. Termina com o som ligado. Pular,
+ * com som, toca o seu efeito.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, na Tela inicial com som.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarSilencio(pagina) {
+  const problemas = [];
+
+  // A perda de foco simulada na Volta suspendeu o áudio do Phaser; o foco de volta o retoma.
+  await pagina.evaluate(() => window.kiwirun.jogo.events.emit('focus'));
+  await abrirCena(pagina, CENA_TELA_INICIAL);
+  if (!(await esperarSilencio(pagina, CENA_TELA_INICIAL, false))) problemas.push('o jogo não começou com som e sem o ícone');
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('KeyM');
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  if (!(await esperarSilencio(pagina, CENA_TELA_INICIAL, true))) problemas.push('M na Tela inicial não silenciou nem mostrou o ícone');
+
+  await pagina.reload();
+  await pagina.waitForFunction((cena) => window.kiwirun?.jogo?.scene.isActive(cena), CENA_TELA_INICIAL, { timeout: LIMITE_MS });
+  if (!(await esperarSilencio(pagina, CENA_TELA_INICIAL, true))) problemas.push('o Silêncio não sobreviveu a recarregar a página');
+
+  await abrirCena(pagina, CENA_MENU);
+  if (!(await voltou(pagina))) problemas.push('a Volta pelo Menu silenciado não abriu a Tela inicial');
+  if (!(await esperarSilencio(pagina, CENA_TELA_INICIAL, true))) problemas.push('o Silêncio não sobreviveu à Volta por inatividade');
+
+  await abrirCena(pagina, CENA_FASE, { faseId: FASE_PECUARIA });
+  await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.getScene(cena)?.kiwi?.active === true, CENA_FASE, { timeout: LIMITE_MS });
+  if (!(await esperarSilencio(pagina, CENA_FASE, true))) problemas.push('a Fase silenciada não mostrou o ícone');
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('KeyM');
+  await pagina.waitForTimeout(ESPERA_MS);
+  if (!(await esperarSilencio(pagina, CENA_FASE, false))) problemas.push('M na Fase não devolveu o som nem escondeu o ícone');
+  if ((await estadoDaFase(pagina)).segundos !== 0) problemas.push('M deu a partida na Fase congelada');
+  // Com som: o primeiro Espaço dá a partida (o Kiwi assenta no chão) e o segundo pula.
+  await espiarEfeitos(pagina);
+  for (let pulo = 0; pulo < 2; pulo += 1) {
+    await pagina.keyboard.press('Space');
+    await pagina.waitForTimeout(ESPERA_MS);
+  }
+  problemas.push(...await verificarEfeitos(pagina, ['pular']));
+
+  await pagina.keyboard.press('Escape');
+  if (!(await esperarCena(pagina, CENA_PAUSA))) return [...problemas, 'Esc na Fase não abriu a Pausa'];
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  await pagina.keyboard.press('KeyM');
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  if (!(await esperarSilencio(pagina, CENA_PAUSA, true))) problemas.push('M na Pausa não silenciou');
+  if (!(await esperarSilencio(pagina, CENA_FASE, true))) problemas.push('o ícone da Fase sob a Pausa não acompanhou o Silêncio');
+  const congelada = await pagina.evaluate(({ fase, pausa }) => {
+    const { scene } = window.kiwirun.jogo;
+    return scene.isPaused(fase) && scene.isActive(pausa);
+  }, { fase: CENA_FASE, pausa: CENA_PAUSA });
+  if (!congelada) problemas.push('M na Pausa descongelou a Fase ou fechou a Pausa');
+
+  const tentativa = { faseId: FASE_PECUARIA, tempoGasto: 42, itens: [], capturas: [], fatosEncontrados: [], novoRecorde: true };
+  await abrirCena(pagina, CENA_INICIAIS, tentativa);
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('KeyM');
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  if (!(await esperarSilencio(pagina, CENA_INICIAIS, true))) problemas.push('M nas Iniciais mexeu no Silêncio');
+  if ((await estadoDasIniciais(pagina)).letras !== 'MAA') problemas.push('M nas Iniciais não digitou a letra');
+  await apertarSelect(pagina);
+  if (!(await esperarSilencio(pagina, CENA_INICIAIS, false))) problemas.push('o Select nas Iniciais não devolveu o som');
+  return problemas;
+}
+
+/**
  * Abre o jogo e devolve o que deu errado.
  *
  * @param {string} url - Endereço do jogo servido localmente.
@@ -868,7 +1010,9 @@ async function verificarVolta(pagina) {
 async function verificarJogo(url) {
   const problemas = [];
   const origem = new URL(url).origin;
-  const navegador = await chromium.launch();
+  // O headless não destrava o áudio com o input simulado: sem isto, o som nunca roda e o mute
+  // do Phaser não chega a valer.
+  const navegador = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
   const pagina = await navegador.newPage({ viewport: { width: 1280, height: 720 } });
 
   try {
@@ -919,6 +1063,7 @@ async function verificarJogo(url) {
   try {
     problemas.push(...await verificarIdioma(pagina));
     problemas.push(...await verificarMenu(pagina));
+    await espiarEfeitos(pagina);
     await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
     await pagina.keyboard.press('Enter');
     await pagina.waitForFunction(
@@ -935,9 +1080,11 @@ async function verificarJogo(url) {
     problemas.push(...await verificarItensECheckpoints(pagina));
     problemas.push(...await verificarPausaAndando(pagina));
     problemas.push(...await verificarPlacar(pagina));
+    problemas.push(...await verificarEfeitos(pagina, ['coletar', 'capturar', 'samambaia']));
     problemas.push(...await verificarRecorde(pagina));
     problemas.push(...await verificarReiniciar(pagina));
     problemas.push(...await verificarVolta(pagina));
+    problemas.push(...await verificarSilencio(pagina));
   } catch (erro) {
     problemas.push(`Pecuária não carregou pelo Menu: ${erro.message}`);
   } finally {
@@ -954,4 +1101,4 @@ if (problemas.length > 0) {
   console.error(`Smoke falhou:\n- ${problemas.join('\n- ')}`);
   process.exit(1);
 }
-console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Placas, Ovelhas, Iniciais, Placar, Recorde (recarregar e zerar), Pausa, bloqueio de entrada e Volta por inatividade funcionando, sem erro no console nem requisição fora da origem.');
+console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Placas, Ovelhas, Iniciais, Placar, Recorde (recarregar e zerar), Pausa, bloqueio de entrada, Volta por inatividade, efeitos sonoros e Silêncio funcionando, sem erro no console nem requisição fora da origem.');
