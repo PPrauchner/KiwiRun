@@ -87,4 +87,7 @@ export default {
   'fato.pecuaria.1': 'A Halter usa coleiras GPS solares que guiam o gado com som e vibração, sem cercas.',
   'fato.pecuaria.2': 'A Halter já vendeu mais de 1 milhão de coleiras para mais de 2 mil fazendas.',
   'fato.pecuaria.3': 'Em 2026, a startup de AgTech Halter foi avaliada em 2 bilhões de dólares.',
+  'fato.porto.1': 'Em 2025-26, a NZ deve exportar o recorde de 64,3 bilhões de dólares em alimentos e fibras.',
+  'fato.porto.2': 'Laticínios rendem cerca de 45 por cento das exportações de alimentos e fibras da NZ.',
+  'fato.porto.3': 'A NZ exportou volumes recordes de Kiwifruta e maçã em 2025-26.',
 };

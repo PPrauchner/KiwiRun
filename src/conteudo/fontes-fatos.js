@@ -12,10 +12,15 @@
  */
 
 const ANUNCIO_HALTER = 'Anúncio da Série E da Halter (mar/2026)';
+const SOPI_MPI = 'MPI, SOPI de junho de 2026';
 
 /** @type {Readonly<Record<string, FonteFato>>} */
 export default Object.freeze({
   'fato.pecuaria.1': { fonte: ANUNCIO_HALTER, provisorio: false },
   'fato.pecuaria.2': { fonte: ANUNCIO_HALTER, provisorio: false },
   'fato.pecuaria.3': { fonte: ANUNCIO_HALTER, provisorio: false },
+  // Candidatos E1, E2 e E4 do material do Assunto, até a #25 trazer os definitivos.
+  'fato.porto.1': { fonte: SOPI_MPI, provisorio: true },
+  'fato.porto.2': { fonte: SOPI_MPI, provisorio: true },
+  'fato.porto.3': { fonte: SOPI_MPI, provisorio: true },
 });
