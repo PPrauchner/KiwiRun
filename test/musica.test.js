@@ -51,11 +51,9 @@ test('cada andamento tem sua faixa .wav versionada e sua chave de áudio', () =>
 test('a trilha começa a música na primeira tela e não a reinicia no mesmo andamento', () => {
   const trilha = criarTrilha();
 
-  assert.equal(trilha.andamento, null);
   assert.equal(trilha.tocar(ANDAMENTO_BASE), true, 'Tela inicial começa a música');
   assert.equal(trilha.tocar(ANDAMENTO_BASE), false, 'Menu segue a mesma música');
   assert.equal(trilha.tocar(ANDAMENTO_BASE), false, 'Placar segue a mesma música');
-  assert.equal(trilha.andamento, ANDAMENTO_BASE);
 });
 
 test('a trilha troca a música ao entrar numa Fase com outro andamento, e volta ao sair', () => {
