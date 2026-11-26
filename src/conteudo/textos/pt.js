@@ -5,6 +5,7 @@ export default {
   'tela_inicial.aperte': 'aperte um botão',
   'tela_inicial.saudacao': 'Kia ora!',
   'tela_inicial.versao': 'v{versao}',
+  'idioma.sigla': 'PT',
   'menu.titulo': 'Aotearoa',
   'menu.em_breve': 'em breve',
   'menu.recorde': 'Recorde',
