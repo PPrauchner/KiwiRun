@@ -92,3 +92,14 @@ test('soltar o botão no quique corta a subida, como num pulo curto', () => {
 
   assert.equal(passo(controle, { segurando: false, vy }), -FISICA.velocidadeCorte);
 });
+
+test('o controle diz em que passo o pulo começou, para o efeito sonoro tocar uma vez', () => {
+  const controle = criarControlePulo();
+
+  passo(controle, { noChao: true });
+  assert.equal(controle.pulou, false);
+  passo(controle, { noChao: true, apertou: true, segurando: true });
+  assert.equal(controle.pulou, true);
+  passo(controle, { segurando: true, vy: -100 });
+  assert.equal(controle.pulou, false);
+});
