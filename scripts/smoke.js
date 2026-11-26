@@ -2,11 +2,15 @@
  * @file Smoke no navegador: abre o jogo servido localmente no Chromium (Playwright),
  * espera a Tela inicial, troca o idioma para EN (o Menu sai em inglês, nada vai ao
  * `localStorage` e recarregar volta ao PT), aperta uma tecla, confere o Menu (cursor na Pecuária, Mundos e
- * Fases em breve marcados, Esc de volta à Tela inicial), escolhe a Pecuária, espera ela
+ * Fases em breve marcados, Esc de volta à Tela inicial), os Créditos (abertos pelo Menu, com
+ * o grupo, os pacotes Kenney, o Phaser e as fontes dos Fatos por Fase, M silenciando, Esc e
+ * "Voltar" de volta ao Menu), escolhe a Pecuária, espera ela
  * carregada e confere o HUD,
  * a Fase parada até o primeiro input, a coleta de um Item, as Samambaias-prateadas e a
  * Fila de Fatos, a volta ao Checkpoint, e os Predadores: Captura, contato lateral e a
- * invulnerabilidade depois de voltar, as Iniciais do primeiro Recorde (o pulo segurado não
+ * invulnerabilidade depois de voltar, as Placas no idioma atual e as Ovelhas (paradas até o
+ * primeiro input, atravessadas de lado, levando o Kiwi montado e devolvendo-o ao Checkpoint
+ * quando ele fica prensado), as Iniciais do primeiro Recorde (o pulo segurado não
  * confirma, digitar letras sem mover o cursor, Esc volta uma letra), o Placar com "Novo
  * Recorde" (Tempo final, Itens por tipo, Capturas por espécie, Fatos e "???", sem "Próxima
  * Fase"), o bloqueio de entrada (o pulo segurado ao tocar o fim não escolhe nada no Placar,
@@ -17,7 +21,13 @@
  * e desconectar o controle abrem a Pausa, "Reiniciar a Fase" com o pulo segurado recomeça do
  * zero sem o Kiwi pular, e "Menu" sai para o Menu; e a Volta por inatividade, com os tempos
  * encurtados: aviso e Volta no Menu (em EN, volta em PT), na Fase, na Pausa e no Placar, "---"
- * nas Iniciais e nenhum aviso na Tela inicial. Falha também se houver erro no console ou
+ * nas Iniciais e nenhum aviso na Tela inicial; os efeitos sonoros de pular, coletar, capturar e
+ * achar uma Samambaia-prateada; e o Silêncio: M e Select com o ícone, persistindo ao recarregar
+ * e na Volta, sem descongelar a Fase nem a Pausa, e M digitando nas Iniciais; a música: sem
+ * reiniciar entre Tela inicial, Menu, Créditos e Placar, trocando de andamento na Pecuária e
+ * cortada pelo Silêncio; e o aviso de toque:
+ * ausente no desktop, presente com toque emulado (com o link do Pages, sem Wake Lock no
+ * navegador, e qualquer tecla abrindo o Menu), com a Wake Lock pedida ao abrir. Falha também se houver erro no console ou
  * requisição fora da origem.
  *
  * Uso: `npm run smoke`. Sai com código 1 e a lista de problemas quando algo falha.
@@ -28,15 +38,20 @@ import { iniciarServidor } from './servidor.js';
 import { criarTextos } from '../src/logica/textos.js';
 import { VERSAO } from '../src/logica/versao.js';
 import { DURACAO_FATO } from '../src/logica/fila-fatos.js';
-import { chaveNomeItem, chaveNomePredador } from '../src/logica/catalogo.js';
+import { buscarFase, chaveNomeItem, chaveNomePredador, MUNDOS } from '../src/logica/catalogo.js';
 import { SEGUNDOS_INVULNERAVEL } from '../src/logica/captura.js';
+import { SEGUNDOS_PRESO } from '../src/logica/ovelha.js';
 import { SEGUNDOS_BLOQUEIO } from '../src/logica/input.js';
 import { arredondarDecimos, SEGUNDOS_ZERAR, textoRecorde } from '../src/logica/recorde.js';
 import { chaveOpcaoPausa, LINHAS_CONTROLES } from '../src/logica/menu-pausa.js';
+import { chaveEfeito } from '../src/logica/efeitos.js';
+import { ANDAMENTO_BASE, andamentoDaFase, chaveMusica } from '../src/logica/musica.js';
+import { CHAVES_TELA_CREDITOS, fontesPorFase, SECOES_CREDITOS } from '../src/logica/creditos.js';
 
 const LIMITE_MS = 15_000;
 const CENA_TELA_INICIAL = 'tela-inicial';
 const CENA_MENU = 'menu';
+const CENA_CREDITOS = 'creditos';
 const CENA_FASE = 'fase';
 const CENA_PLACAR = 'placar';
 const CENA_INICIAIS = 'iniciais';
@@ -64,8 +79,9 @@ async function objetosDaPecuaria(nome) {
  *
  * @param {import('playwright').Page} pagina - A página do jogo.
  * @returns {Promise<{ textos: string[], x: number, y: number, vy: number, segundos: number,
- *   fatosEncontrados: number, capturas: number, invulneravel: number, predadores: { x: number, y: number }[] }>}
- *   O estado; `predadores` são os que ainda estão na Fase.
+ *   fatosEncontrados: number, capturas: number, invulneravel: number, predadores: { x: number, y: number }[],
+ *   ovelhas: { x: number, y: number }[], checkpoint: { x: number, y: number } }>}
+ *   O estado; `predadores` são os que ainda estão na Fase e `checkpoint`, o ativo.
  */
 function estadoDaFase(pagina) {
   return pagina.evaluate((cena) => {
@@ -87,6 +103,8 @@ function estadoDaFase(pagina) {
       capturas: fase.capturas,
       invulneravel: fase.invulneravel,
       predadores,
+      ovelhas: fase.ovelhas.getChildren().map((ovelha) => ({ x: ovelha.x, y: ovelha.y })),
+      checkpoint: { ...fase.checkpoint },
     };
   }, CENA_FASE);
 }
@@ -110,6 +128,11 @@ async function verificarItensECheckpoints(pagina) {
   if (!parado.textos.includes(`0/${itens.length}`)) problemas.push(`HUD sem "0/${itens.length}": ${parado.textos}`);
   if (parado.y !== antes.y || parado.segundos !== 0) problemas.push('a Fase se mexeu antes do primeiro input');
   if (JSON.stringify(parado.predadores) !== JSON.stringify(antes.predadores)) problemas.push('um Predador se mexeu antes do primeiro input');
+  if (parado.ovelhas.length === 0) problemas.push('a Pecuária abriu sem Ovelhas');
+  if (JSON.stringify(parado.ovelhas) !== JSON.stringify(antes.ovelhas)) problemas.push('uma Ovelha se mexeu antes do primeiro input');
+  for (const { type: chave } of await objetosDaPecuaria('placa')) {
+    if (!parado.textos.includes(criarTextos().t(chave))) problemas.push(`Placa sem o texto "${criarTextos().t(chave)}"`);
+  }
 
   await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
   await pagina.keyboard.down('ArrowRight');
@@ -118,6 +141,7 @@ async function verificarItensECheckpoints(pagina) {
   const andou = await estadoDaFase(pagina);
   if (andou.x <= antes.x || andou.segundos <= 0) problemas.push('mover não deu a partida na Fase e no cronômetro');
   if (andou.predadores.every((predador, i) => predador.x === antes.predadores[i].x)) problemas.push('os Predadores não patrulham depois do primeiro input');
+  if (andou.ovelhas.every((ovelha, i) => ovelha.x === antes.ovelhas[i].x)) problemas.push('as Ovelhas não andam depois do primeiro input');
 
   // Leva o Kiwi ao primeiro Item, depois ao Checkpoint, e o derruba na Zona de queda.
   const levarKiwi = (x, y) => pagina.evaluate(([cena, alvoX, alvoY]) => {
@@ -158,6 +182,56 @@ async function verificarItensECheckpoints(pagina) {
     problemas.push('voltar ao Checkpoint perdeu as Samambaias-prateadas ou os Fatos encontrados');
   }
   problemas.push(...await verificarPredadores(pagina, levarKiwi, checkpoint));
+  problemas.push(...await verificarOvelhas(pagina, levarKiwi));
+  return problemas;
+}
+
+/**
+ * Confere a primeira Ovelha: de lado, o Kiwi a atravessa sem subir; caindo sobre ela, fica
+ * montado e é levado; prensado contra uma parede em cima dela, volta ao Checkpoint.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, com a Fase andando.
+ * @param {(x: number, y: number) => Promise<void>} levarKiwi - Põe o Kiwi num ponto.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarOvelhas(pagina, levarKiwi) {
+  const problemas = [];
+  // Recomeça a primeira Ovelha a 2 tiles da ponta esquerda, indo para a direita: sobra trajeto.
+  const ovelha = await pagina.evaluate((cena) => {
+    const [primeira] = window.kiwirun.jogo.scene.getScene(cena).ovelhas.getChildren();
+    const velocidade = Math.abs(primeira.body.velocity.x);
+    primeira.body.reset(primeira.getData('minX') + 36, primeira.y);
+    primeira.setVelocityX(velocidade);
+    return { x: primeira.x, y: primeira.y };
+  }, CENA_FASE);
+
+  await levarKiwi(ovelha.x + 6, ovelha.y);
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  const deLado = await estadoDaFase(pagina);
+  if (deLado.y < ovelha.y - 2) problemas.push('o Kiwi encostado de lado subiu na Ovelha em vez de atravessá-la');
+
+  const [agora] = deLado.ovelhas;
+  await levarKiwi(agora.x + 6, agora.y - 20);
+  await pagina.waitForTimeout(ESPERA_MS / 2);
+  const montado = await estadoDaFase(pagina);
+  await pagina.waitForTimeout(ESPERA_MS);
+  const levado = await estadoDaFase(pagina);
+  const andouOvelha = levado.ovelhas[0].x - montado.ovelhas[0].x;
+  if (montado.y > montado.ovelhas[0].y - 8) problemas.push(`o Kiwi não ficou montado na Ovelha: ${montado.y} sobre ${montado.ovelhas[0].y}`);
+  if (andouOvelha === 0 || Math.abs(levado.x - montado.x - andouOvelha) > 2) problemas.push(`a Ovelha não levou o Kiwi montado: Ovelha andou ${andouOvelha}, Kiwi ${levado.x - montado.x}`);
+
+  // Uma parede logo à frente do Kiwi montado o prensa enquanto a Ovelha anda.
+  await pagina.evaluate((cena) => {
+    const fase = window.kiwirun.jogo.scene.getScene(cena);
+    const parede = fase.add.zone(fase.kiwi.x + 8, fase.kiwi.y, 4, 54);
+    fase.physics.add.existing(parede, true);
+    fase.physics.add.collider(fase.kiwi, parede);
+    window.paredeDoSmoke = parede;
+  }, CENA_FASE);
+  await pagina.waitForTimeout(SEGUNDOS_PRESO * 1000 + ESPERA_MS);
+  const preso = await estadoDaFase(pagina);
+  await pagina.evaluate(() => window.paredeDoSmoke.destroy());
+  if (Math.abs(preso.x - preso.checkpoint.x) > 4) problemas.push(`preso numa Ovelha, o Kiwi não voltou ao Checkpoint: ${preso.x}`);
   return problemas;
 }
 
@@ -356,6 +430,8 @@ async function verificarPredadores(pagina, levarKiwi, checkpoint) {
   await pagina.waitForTimeout(50);
   const atravessou = await estadoDaFase(pagina);
   if (Math.abs(atravessou.x - checkpoint.x) <= 4) problemas.push('invulnerável, o contato lateral ainda devolveu o Kiwi ao Checkpoint');
+  // Longe dos Predadores: parado dentro de um, o fim da invulnerabilidade o devolve ao Checkpoint de novo.
+  await levarKiwi(checkpoint.x, checkpoint.y - 9);
   await pagina.waitForTimeout(SEGUNDOS_INVULNERAVEL * 1000 + ESPERA_MS);
   if ((await estadoDaFase(pagina)).invulneravel !== 0) problemas.push('a invulnerabilidade não acabou depois de ~1 s');
   return problemas;
@@ -459,6 +535,59 @@ async function verificarMenu(pagina) {
   await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
   await pagina.keyboard.press('Enter');
   if (!(await esperarCena(pagina, CENA_MENU))) problemas.push('Enter na Tela inicial não reabriu o Menu');
+  return problemas;
+}
+
+/**
+ * Do Menu (cursor na Pecuária), desce dos Mundos até "Créditos" e o confirma.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, no Menu recém-aberto.
+ * @returns {Promise<boolean>} Se os Créditos abriram.
+ */
+async function abrirCreditos(pagina) {
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  for (const tecla of ['ArrowLeft', 'ArrowDown', 'Enter']) {
+    await pagina.keyboard.press(tecla);
+    await pagina.waitForTimeout(ESPERA_MS / 4);
+  }
+  return esperarCena(pagina, CENA_CREDITOS);
+}
+
+/**
+ * Os Créditos: "Créditos" no Menu os abre, com o grupo, os pacotes Kenney, o Phaser e as
+ * fontes dos Fatos de cada Fase; M silencia e mostra o ícone; Esc e o botão "Voltar"
+ * (confirmar) voltam ao Menu. Termina no Menu, com som.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, no Menu recém-aberto.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarCreditos(pagina) {
+  const problemas = [];
+  const textos = criarTextos();
+  if (!(await abrirCreditos(pagina))) return ['"Créditos" no Menu não abriu os Créditos'];
+
+  const chaves = [...CHAVES_TELA_CREDITOS, ...SECOES_CREDITOS.flatMap((secao) => [secao.chaveTitulo, ...secao.chavesLinhas])];
+  const esperados = chaves.map((chave) => textos.t(chave));
+  for (const { chaveNome, fontes } of fontesPorFase(MUNDOS)) esperados.push(textos.t(chaveNome), ...fontes);
+  const visiveis = await textosDaCena(pagina, CENA_CREDITOS);
+  for (const esperado of esperados) {
+    if (!visiveis.includes(esperado)) problemas.push(`Créditos sem o texto "${esperado}"`);
+  }
+
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('KeyM');
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  if (!(await esperarSilencio(pagina, CENA_CREDITOS, true))) problemas.push('M nos Créditos não silenciou nem mostrou o ícone');
+  await pagina.keyboard.press('KeyM');
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  if (!(await esperarSilencio(pagina, CENA_CREDITOS, false))) problemas.push('M de novo nos Créditos não devolveu o som');
+
+  await pagina.keyboard.press('Escape');
+  if (!(await esperarCena(pagina, CENA_MENU))) return [...problemas, 'Esc nos Créditos não voltou ao Menu'];
+  if (!(await abrirCreditos(pagina))) return [...problemas, '"Créditos" no Menu não reabriu os Créditos'];
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('Enter');
+  if (!(await esperarCena(pagina, CENA_MENU))) problemas.push('"Voltar" nos Créditos não voltou ao Menu');
   return problemas;
 }
 
@@ -667,7 +796,7 @@ async function verificarRecorde(pagina) {
   await pagina.keyboard.up('ShiftLeft');
   if (!(await textosDaCena(pagina, CENA_TELA_INICIAL)).includes(confirmacao)) problemas.push(`Shift+Backspace por 3 s não mostrou "${confirmacao}"`);
   if (await lerRecorde(pagina)) problemas.push('Shift+Backspace por 3 s não zerou o Recorde');
-  const guardados = await pagina.evaluate(() => Object.keys(localStorage).filter((chave) => chave.startsWith('kiwirun:')));
+  const guardados = await pagina.evaluate(() => Object.keys(localStorage).filter((chave) => chave.startsWith('kiwirun:v1:recorde:')));
   if (guardados.length > 0) problemas.push(`zerar deixou Recordes no localStorage: ${guardados}`);
 
   await pagina.keyboard.press('Enter');
@@ -798,6 +927,268 @@ async function verificarVolta(pagina) {
 }
 
 /**
+ * Passa a registrar os efeitos sonoros tocados em `window.efeitosTocados`, até a página
+ * recarregar.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ */
+function espiarEfeitos(pagina) {
+  return pagina.evaluate(() => {
+    const { sound } = window.kiwirun.jogo;
+    const tocar = sound.play.bind(sound);
+    window.efeitosTocados = [];
+    sound.play = (chave, configuracao) => {
+      window.efeitosTocados.push(chave);
+      return tocar(chave, configuracao);
+    };
+  });
+}
+
+/**
+ * Confere que cada efeito dado tocou desde `espiarEfeitos`.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, sem recarregar desde a espia.
+ * @param {readonly string[]} efeitos - As ações cujo efeito deve ter tocado.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarEfeitos(pagina, efeitos) {
+  const tocados = await pagina.evaluate(() => window.efeitosTocados);
+  return efeitos.filter((efeito) => !tocados.includes(chaveEfeito(efeito)))
+    .map((efeito) => `o efeito "${efeito}" não tocou`);
+}
+
+/**
+ * Espera o Silêncio chegar ao estado dado: o som do jogo mudo ou não, o ícone de som cortado
+ * visível ou não na cena e o `localStorage` de acordo. O Chrome só atualiza o ganho do mute
+ * enquanto algum som passa por ele: um efeito toca para a conferência.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ * @param {string} cena - A chave da cena.
+ * @param {boolean} ligado - O estado esperado.
+ * @returns {Promise<boolean>} Se o Silêncio chegou ao estado em até `ESPERA_MS`.
+ */
+async function esperarSilencio(pagina, cena, ligado) {
+  await pagina.evaluate((chave) => window.kiwirun.jogo.sound.play(chave), chaveEfeito('coletar'));
+  return pagina.waitForFunction(({ chave, esperado }) => {
+    const { jogo } = window.kiwirun;
+    const icone = jogo.scene.getScene(chave).children.list.some((objeto) => objeto.texture?.key === 'silencio' && objeto.visible);
+    const gravado = localStorage.getItem('kiwirun:v1:silencio') === '1';
+    return jogo.sound.mute === esperado && icone === esperado && gravado === esperado;
+  }, { chave: cena, esperado: ligado }, { timeout: ESPERA_MS }).then(() => true, () => false);
+}
+
+/**
+ * Segura o Select de um controle `standard` simulado por alguns quadros e o solta.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ */
+async function apertarSelect(pagina) {
+  const definir = (apertado) => pagina.evaluate((select) => {
+    const botoes = Array.from({ length: 17 }, (_, numero) => ({ pressed: select && numero === 8, value: 0 }));
+    const controle = { index: 0, connected: true, mapping: 'standard', buttons: botoes, axes: [0, 0, 0, 0] };
+    Object.defineProperty(navigator, 'getGamepads', { value: () => [controle], configurable: true });
+  }, apertado);
+  await definir(true);
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  await definir(false);
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+}
+
+/**
+ * O Silêncio: M na Tela inicial silencia, grava no `localStorage` e mostra o ícone; ele
+ * sobrevive a recarregar a página e à Volta por inatividade; na Fase congelada, M o desliga sem
+ * dar a partida; na Pausa, M volta a silenciar sem descongelar a Fase (o ícone dela acompanha);
+ * nas Iniciais, M digita e não silencia, e o Select silencia. Termina com o som ligado. Pular,
+ * com som, toca o seu efeito.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, na Tela inicial com som.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarSilencio(pagina) {
+  const problemas = [];
+
+  // A perda de foco simulada na Volta suspendeu o áudio do Phaser; o foco de volta o retoma.
+  await pagina.evaluate(() => window.kiwirun.jogo.events.emit('focus'));
+  await abrirCena(pagina, CENA_TELA_INICIAL);
+  if (!(await esperarSilencio(pagina, CENA_TELA_INICIAL, false))) problemas.push('o jogo não começou com som e sem o ícone');
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('KeyM');
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  if (!(await esperarSilencio(pagina, CENA_TELA_INICIAL, true))) problemas.push('M na Tela inicial não silenciou nem mostrou o ícone');
+
+  await pagina.reload();
+  await pagina.waitForFunction((cena) => window.kiwirun?.jogo?.scene.isActive(cena), CENA_TELA_INICIAL, { timeout: LIMITE_MS });
+  if (!(await esperarSilencio(pagina, CENA_TELA_INICIAL, true))) problemas.push('o Silêncio não sobreviveu a recarregar a página');
+
+  await abrirCena(pagina, CENA_MENU);
+  if (!(await voltou(pagina))) problemas.push('a Volta pelo Menu silenciado não abriu a Tela inicial');
+  if (!(await esperarSilencio(pagina, CENA_TELA_INICIAL, true))) problemas.push('o Silêncio não sobreviveu à Volta por inatividade');
+
+  await abrirCena(pagina, CENA_FASE, { faseId: FASE_PECUARIA });
+  await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.getScene(cena)?.kiwi?.active === true, CENA_FASE, { timeout: LIMITE_MS });
+  if (!(await esperarSilencio(pagina, CENA_FASE, true))) problemas.push('a Fase silenciada não mostrou o ícone');
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('KeyM');
+  await pagina.waitForTimeout(ESPERA_MS);
+  if (!(await esperarSilencio(pagina, CENA_FASE, false))) problemas.push('M na Fase não devolveu o som nem escondeu o ícone');
+  if ((await estadoDaFase(pagina)).segundos !== 0) problemas.push('M deu a partida na Fase congelada');
+  // Com som: o primeiro Espaço dá a partida (o Kiwi assenta no chão) e o segundo pula.
+  await espiarEfeitos(pagina);
+  for (let pulo = 0; pulo < 2; pulo += 1) {
+    await pagina.keyboard.press('Space');
+    await pagina.waitForTimeout(ESPERA_MS);
+  }
+  problemas.push(...await verificarEfeitos(pagina, ['pular']));
+
+  await pagina.keyboard.press('Escape');
+  if (!(await esperarCena(pagina, CENA_PAUSA))) return [...problemas, 'Esc na Fase não abriu a Pausa'];
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  await pagina.keyboard.press('KeyM');
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  if (!(await esperarSilencio(pagina, CENA_PAUSA, true))) problemas.push('M na Pausa não silenciou');
+  if (!(await esperarSilencio(pagina, CENA_FASE, true))) problemas.push('o ícone da Fase sob a Pausa não acompanhou o Silêncio');
+  const congelada = await pagina.evaluate(({ fase, pausa }) => {
+    const { scene } = window.kiwirun.jogo;
+    return scene.isPaused(fase) && scene.isActive(pausa);
+  }, { fase: CENA_FASE, pausa: CENA_PAUSA });
+  if (!congelada) problemas.push('M na Pausa descongelou a Fase ou fechou a Pausa');
+
+  const tentativa = { faseId: FASE_PECUARIA, tempoGasto: 42, itens: [], capturas: [], fatosEncontrados: [], novoRecorde: true };
+  await abrirCena(pagina, CENA_INICIAIS, tentativa);
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('KeyM');
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  if (!(await esperarSilencio(pagina, CENA_INICIAIS, true))) problemas.push('M nas Iniciais mexeu no Silêncio');
+  if ((await estadoDasIniciais(pagina)).letras !== 'MAA') problemas.push('M nas Iniciais não digitou a letra');
+  await apertarSelect(pagina);
+  if (!(await esperarSilencio(pagina, CENA_INICIAIS, false))) problemas.push('o Select nas Iniciais não devolveu o som');
+  return problemas;
+}
+
+/**
+ * Lê os textos da Tela inicial.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, com a Tela inicial ativa.
+ * @returns {Promise<string[]>} Os textos bitmap da cena.
+ */
+function textosDaTelaInicial(pagina) {
+  return pagina.evaluate((cena) => window.kiwirun.jogo.scene.getScene(cena).children.list
+    .filter((objeto) => objeto.type === 'BitmapText')
+    .map((objeto) => objeto.text), CENA_TELA_INICIAL);
+}
+
+/**
+ * Passa a registrar em `window.musicasIniciadas` a chave de cada faixa de música que (re)começa.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, com a música já tocando.
+ */
+function espiarMusica(pagina) {
+  return pagina.evaluate(() => {
+    const { sound } = window.kiwirun.jogo;
+    const faixa = sound.getAll().find((som) => som.key.startsWith('musica-'));
+    const prototipo = Object.getPrototypeOf(faixa);
+    const tocar = prototipo.play;
+    window.musicasIniciadas = [];
+    prototipo.play = function play(...argumentos) {
+      if (this.key.startsWith('musica-')) window.musicasIniciadas.push(this.key);
+      return tocar.apply(this, argumentos);
+    };
+  });
+}
+
+/**
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ * @returns {Promise<{ tocando: string[], iniciadas: string[] }>} As faixas de música tocando e
+ *   as que (re)começaram desde `espiarMusica`.
+ */
+function estadoDaMusica(pagina) {
+  return pagina.evaluate(() => ({
+    tocando: window.kiwirun.jogo.sound.getAll().filter((som) => som.key.startsWith('musica-') && som.isPlaying).map((som) => som.key),
+    iniciadas: [...window.musicasIniciadas],
+  }));
+}
+
+/**
+ * A música: tocando no andamento base na Tela inicial, segue sem reiniciar no Menu, nos
+ * Créditos e no Placar; a Pecuária troca para o andamento dela, e o Placar seguinte volta ao
+ * base; o Silêncio a corta. Termina no Placar, com som.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo, com som.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarMusica(pagina) {
+  const problemas = [];
+  const base = chaveMusica(ANDAMENTO_BASE);
+  const daFase = chaveMusica(andamentoDaFase(buscarFase(FASE_PECUARIA)));
+  const tentativa = { faseId: FASE_PECUARIA, tempoGasto: 42, itens: [], capturas: [], fatosEncontrados: [], novoRecorde: false };
+
+  await abrirCena(pagina, CENA_TELA_INICIAL);
+  await espiarMusica(pagina);
+  for (const [cena, dados] of [[CENA_MENU], [CENA_CREDITOS], [CENA_PLACAR, tentativa]]) {
+    await abrirCena(pagina, cena, dados);
+    const musica = await estadoDaMusica(pagina);
+    if (musica.iniciadas.length > 0) problemas.push(`ir à cena ${cena} reiniciou a música: ${musica.iniciadas}`);
+    if (musica.tocando.join() !== base) problemas.push(`na cena ${cena}, a música tocando era "${musica.tocando}", não "${base}"`);
+  }
+
+  await abrirCena(pagina, CENA_FASE, { faseId: FASE_PECUARIA });
+  const naFase = await estadoDaMusica(pagina);
+  if (naFase.iniciadas.join() !== daFase || naFase.tocando.join() !== daFase) {
+    problemas.push(`a Pecuária não trocou para "${daFase}": ${JSON.stringify(naFase)}`);
+  }
+  await abrirCena(pagina, CENA_PLACAR, tentativa);
+  const noPlacar = await estadoDaMusica(pagina);
+  if (noPlacar.iniciadas.join() !== [daFase, base].join() || noPlacar.tocando.join() !== base) {
+    problemas.push(`o Placar depois da Fase não voltou a "${base}": ${JSON.stringify(noPlacar)}`);
+  }
+
+  await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+  await pagina.keyboard.press('KeyM');
+  if (!(await esperarSilencio(pagina, CENA_PLACAR, true))) problemas.push('M no Placar não cortou a música');
+  await pagina.keyboard.press('KeyM');
+  if (!(await esperarSilencio(pagina, CENA_PLACAR, false))) problemas.push('M no Placar não devolveu a música');
+  return problemas;
+}
+
+/**
+ * Abre o jogo num aparelho de toque emulado, sem Wake Lock no navegador: a Tela inicial mostra
+ * "Jogue no computador" com o link do Pages, nada quebra, e uma tecla abre o Menu mesmo assim.
+ *
+ * @param {import('playwright').Browser} navegador - O navegador do smoke.
+ * @param {string} url - O endereço do jogo.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarToque(navegador, url) {
+  const problemas = [];
+  const contexto = await navegador.newContext({ viewport: { width: 1280, height: 720 }, hasTouch: true });
+  const pagina = await contexto.newPage();
+  pagina.on('console', (mensagem) => {
+    if (mensagem.type() === 'error') problemas.push(`erro no console com toque: ${mensagem.text()}`);
+  });
+  pagina.on('pageerror', (erro) => problemas.push(`exceção na página com toque: ${erro.message}`));
+  await pagina.addInitScript(() => {
+    delete Navigator.prototype.wakeLock;
+  });
+  try {
+    await pagina.goto(url);
+    await pagina.waitForFunction((cena) => window.kiwirun?.jogo?.scene.isActive(cena), CENA_TELA_INICIAL, { timeout: LIMITE_MS });
+    const textos = await textosDaTelaInicial(pagina);
+    for (const chave of ['tela_inicial.toque', 'tela_inicial.link']) {
+      const esperado = criarTextos().t(chave);
+      if (!textos.includes(esperado)) problemas.push(`com toque, a Tela inicial não mostrou "${esperado}"`);
+    }
+    await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+    await pagina.keyboard.press('Enter');
+    await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.isActive(cena), CENA_MENU, { timeout: LIMITE_MS });
+  } catch (erro) {
+    problemas.push(`com toque, o jogo não seguiu da Tela inicial ao Menu: ${erro.message}`);
+  } finally {
+    await contexto.close();
+  }
+  return problemas;
+}
+
+/**
  * Abre o jogo e devolve o que deu errado.
  *
  * @param {string} url - Endereço do jogo servido localmente.
@@ -806,8 +1197,22 @@ async function verificarVolta(pagina) {
 async function verificarJogo(url) {
   const problemas = [];
   const origem = new URL(url).origin;
-  const navegador = await chromium.launch();
+  // O headless não destrava o áudio com o input simulado: sem isto, o som nunca roda e o mute
+  // do Phaser não chega a valer.
+  const navegador = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
   const pagina = await navegador.newPage({ viewport: { width: 1280, height: 720 } });
+
+  // Conta os pedidos de Wake Lock; a recusa do headless não pode virar erro no console.
+  await pagina.addInitScript(() => {
+    window.kiwirunPedidosTrava = 0;
+    const trava = navigator.wakeLock;
+    if (!trava) return;
+    const pedir = trava.request.bind(trava);
+    trava.request = (tipo) => {
+      window.kiwirunPedidosTrava += 1;
+      return pedir(tipo);
+    };
+  });
 
   try {
     pagina.on('console', (mensagem) => {
@@ -848,6 +1253,8 @@ async function verificarJogo(url) {
     for (const esperado of esperados) {
       if (!tela.textos.includes(esperado)) problemas.push(`Tela inicial sem o texto "${esperado}"`);
     }
+    if (tela.textos.includes(textos.t('tela_inicial.toque'))) problemas.push('no desktop, a Tela inicial mostrou o aviso de toque');
+    if ((await pagina.evaluate(() => window.kiwirunPedidosTrava)) < 1) problemas.push('o jogo não pediu a Wake Lock');
   } catch (erro) {
     problemas.push(`Tela inicial não abriu: ${erro.message}`);
     await navegador.close();
@@ -857,6 +1264,8 @@ async function verificarJogo(url) {
   try {
     problemas.push(...await verificarIdioma(pagina));
     problemas.push(...await verificarMenu(pagina));
+    problemas.push(...await verificarCreditos(pagina));
+    await espiarEfeitos(pagina);
     await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
     await pagina.keyboard.press('Enter');
     await pagina.waitForFunction(
@@ -873,9 +1282,13 @@ async function verificarJogo(url) {
     problemas.push(...await verificarItensECheckpoints(pagina));
     problemas.push(...await verificarPausaAndando(pagina));
     problemas.push(...await verificarPlacar(pagina));
+    problemas.push(...await verificarEfeitos(pagina, ['coletar', 'capturar', 'samambaia']));
     problemas.push(...await verificarRecorde(pagina));
     problemas.push(...await verificarReiniciar(pagina));
     problemas.push(...await verificarVolta(pagina));
+    problemas.push(...await verificarSilencio(pagina));
+    problemas.push(...await verificarMusica(pagina));
+    problemas.push(...await verificarToque(navegador, url));
   } catch (erro) {
     problemas.push(`Pecuária não carregou pelo Menu: ${erro.message}`);
   } finally {
@@ -892,4 +1305,4 @@ if (problemas.length > 0) {
   console.error(`Smoke falhou:\n- ${problemas.join('\n- ')}`);
   process.exit(1);
 }
-console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Iniciais, Placar, Recorde (recarregar e zerar), Pausa, bloqueio de entrada e Volta por inatividade funcionando, sem erro no console nem requisição fora da origem.');
+console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu, Créditos e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Placas, Ovelhas, Iniciais, Placar, Recorde (recarregar e zerar), Pausa, bloqueio de entrada, Volta por inatividade, efeitos sonoros, Silêncio, música, aviso de toque e Wake Lock funcionando, sem erro no console nem requisição fora da origem.');

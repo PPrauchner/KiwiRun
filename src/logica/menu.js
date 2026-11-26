@@ -7,7 +7,7 @@
  */
 
 /**
- * @typedef {{ tela: 'fase', faseId: string } | { tela: 'tela-inicial' }} Destino
+ * @typedef {{ tela: 'fase', faseId: string } | { tela: 'tela-inicial' } | { tela: 'creditos' }} Destino
  */
 
 /**
@@ -17,12 +17,12 @@
  */
 
 /**
- * Opções abaixo dos Mundos. Créditos fica desabilitada até a tela existir.
+ * Opções abaixo dos Mundos.
  *
  * @type {readonly Opcao[]}
  */
 export const OPCOES = Object.freeze([
-  Object.freeze({ id: 'creditos', desabilitada: true }),
+  Object.freeze({ id: 'creditos', desabilitada: false }),
   Object.freeze({ id: 'voltar', desabilitada: false }),
 ]);
 
@@ -143,6 +143,7 @@ export function criarMenu(mundos) {
       if (!acoes.confirmar) return null;
       if (coluna === 'fases') return { tela: 'fase', faseId: mundos[indiceMundo].fases[indiceFase].id };
       if (opcaoSobCursor() === 'voltar') return { tela: 'tela-inicial' };
+      if (opcaoSobCursor() === 'creditos') return { tela: 'creditos' };
       if (indiceEsquerda < mundos.length) entrarNasFases();
       return null;
     },

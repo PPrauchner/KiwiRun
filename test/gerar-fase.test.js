@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { gerarMapa } from '../scripts/gerar-fase.js';
-import { PULO, TILE } from '../src/logica/pulo.js';
+import { FISICA, PULO, TILE } from '../src/logica/pulo.js';
 import { PREDADORES, buscarFase } from '../src/logica/catalogo.js';
 
 const SCRIPT = fileURLToPath(new URL('../scripts/gerar-fase.js', import.meta.url));
@@ -261,4 +261,70 @@ test('a Pecuária versionada tem Predadores das três espécies do catálogo', a
   const especies = objetosChamados(mapa, 'predador').map((objeto) => objeto.type);
 
   assert.deepEqual([...new Set(especies)].sort(), [...PREDADORES].sort());
+});
+
+test('cada Ovelha vira uma área "ovelha" um tile acima do chão entre as colunas do trajeto', () => {
+  const mapa = gerarMapa(descricao({ ovelhas: [{ de: 2, ate: 6 }] }));
+  const [ovelha] = objetosChamados(mapa, 'ovelha');
+
+  assert.deepEqual(
+    { x: ovelha.x, y: ovelha.y, width: ovelha.width, height: ovelha.height },
+    { x: 2 * TILE, y: (mapa.height - 3 - 1) * TILE, width: 5 * TILE, height: TILE },
+  );
+});
+
+test('trajeto de Ovelha sobre um vão ou um degrau é recusado', () => {
+  assert.throws(() => gerarMapa(descricao({ ovelhas: [{ de: 8, ate: 13 }] })), /ovelha/i);
+  const comDegrau = descricao({ trechos: [{ chao: 5, altura: 3 }, { chao: 5, altura: 4 }] });
+  assert.throws(() => gerarMapa({ ...comDegrau, ovelhas: [{ de: 1, ate: 7 }] }), /ovelha/i);
+});
+
+test('trajeto de Ovelha com algo sólido onde o Kiwi fica em cima dela é recusado: sem vão de esmagamento', () => {
+  const plataformaBaixa = [{ coluna: 4, largura: 2, alturaSobreChao: 2 }];
+  assert.throws(() => gerarMapa(descricao({ plataformas: plataformaBaixa, ovelhas: [{ de: 2, ate: 6 }] })), /esmag/);
+  const paredeAoLado = descricao({ trechos: [{ chao: 5, altura: 3 }, { chao: 5, altura: 5 }] });
+  assert.throws(() => gerarMapa({ ...paredeAoLado, ovelhas: [{ de: 1, ate: 4 }] }), /esmag/);
+  const plataformaAlta = [{ coluna: 4, largura: 2, alturaSobreChao: 3 }];
+  assert.doesNotThrow(() => gerarMapa(descricao({ plataformas: plataformaAlta, ovelhas: [{ de: 2, ate: 6 }] })));
+});
+
+test('cada Placa vira um ponto "placa" no chão, com a chave do texto no tipo e a ação na propriedade, sobre um tile de placa', () => {
+  const mapa = gerarMapa(descricao({ placas: [{ coluna: 4, chave: 'placa.teste', acao: 'pular' }] }));
+  const [placa] = objetosChamados(mapa, 'placa');
+  const fundo = mapa.layers.find((camada) => camada.name === 'fundo');
+  const topoDoChao = mapa.height - 3;
+
+  assert.deepEqual(
+    { type: placa.type, x: placa.x, y: placa.y, point: placa.point, properties: placa.properties },
+    { type: 'placa.teste', x: 4.5 * TILE, y: topoDoChao * TILE, point: true, properties: [{ name: 'acao', type: 'string', value: 'pular' }] },
+  );
+  assert.ok(fundo.data[(topoDoChao - 1) * mapa.width + 4] > 0);
+});
+
+test('Placa sobre um vão é recusada', () => {
+  assert.throws(() => gerarMapa(descricao({ placas: [{ coluna: 10, chave: 'placa.teste', acao: 'pular' }] })), /placa/);
+});
+
+test('a Pecuária versionada ensina no início: a Placa de capturar antes de um Predador sozinho em chão plano, e a de pular mais alto', async () => {
+  const mapa = JSON.parse(await readFile(new URL('../assets/mapas/pecuaria.tmj', import.meta.url), 'utf8'));
+  const placas = objetosChamados(mapa, 'placa');
+  const [primeiro, ...outros] = objetosChamados(mapa, 'predador').sort((a, b) => a.x - b.x);
+  const capturar = placas.find((placa) => placa.type === 'placa.capturar');
+  const [inicio] = objetosChamados(mapa, 'inicio');
+
+  assert.deepEqual(placas.map((placa) => placa.type).sort(), ['placa.capturar', 'placa.pular_alto']);
+  for (const placa of placas) assert.ok(placa.x > inicio.x && placa.x < 20 * TILE, `${placa.type} fora do início`);
+  assert.ok(capturar.x < primeiro.x, 'a Placa de capturar vem antes do Predador');
+  assert.ok(outros.every((predador) => predador.x > primeiro.x + primeiro.width + 10 * TILE), 'o primeiro Predador não está sozinho');
+});
+
+test('a Pecuária versionada tem Ovelhas e Checkpoints a no máximo ~20 s de percurso entre si', async () => {
+  const mapa = JSON.parse(await readFile(new URL('../assets/mapas/pecuaria.tmj', import.meta.url), 'utf8'));
+  const marcos = [...objetosChamados(mapa, 'inicio'), ...objetosChamados(mapa, 'checkpoint'), ...objetosChamados(mapa, 'fim')]
+    .map((objeto) => objeto.x).sort((a, b) => a - b);
+  // Andar é o mínimo; o percurso real (pulos, voltas) leva bem mais, daí a folga de 4×.
+  const maiorDistancia = (20 / 4) * FISICA.velocidadeAndar;
+
+  assert.ok(objetosChamados(mapa, 'ovelha').length > 0);
+  marcos.slice(1).forEach((x, i) => assert.ok(x - marcos[i] <= maiorDistancia, `${marcos[i]} → ${x}`));
 });

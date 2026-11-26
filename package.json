@@ -12,6 +12,7 @@
     "gerar:fonte": "node scripts/gerar-fonte.js",
     "gerar:fase": "node scripts/gerar-fase.js",
     "gerar:sprites": "node scripts/gerar-sprites.js",
+    "gerar:musica": "node scripts/gerar-musica.js",
     "smoke": "node scripts/smoke.js"
   },
   "devDependencies": {

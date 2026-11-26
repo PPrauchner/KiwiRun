@@ -18,6 +18,9 @@ import { calcularPlacarDaTentativa } from '../logica/placar.js';
 import { arredondarDecimos } from '../logica/recorde.js';
 import { lerEntrada } from './entrada.js';
 import { criarVigiaInatividade } from './inatividade.js';
+import { criarControleSilencio } from './silencio.js';
+import { tocarMusica } from './musica.js';
+import { ANDAMENTO_BASE } from '../logica/musica.js';
 
 /**
  * @typedef {import('../logica/placar.js').Tentativa & { novoRecorde: boolean }} DadosPlacar
@@ -69,6 +72,8 @@ export class Placar extends Phaser.Scene {
     this.menu = criarMenuPlacar({ faseId, proximaFaseId: proximaFase(faseId)?.id ?? null });
     this.criarOpcoes();
     this.entrada = criarInput();
+    this.silencio = criarControleSilencio(this);
+    tocarMusica(this, ANDAMENTO_BASE);
     this.inatividade = criarVigiaInatividade(this);
     this.redesenhar();
   }
@@ -178,6 +183,7 @@ export class Placar extends Phaser.Scene {
   update(_tempo, delta) {
     const acoes = this.entrada.atualizar(lerEntrada(this), delta / 1000);
     if (this.inatividade.atualizar(this.entrada.segundosSemInput)) return;
+    this.silencio.atualizar(acoes);
     const destino = this.menu.atualizar(acoes);
     if (destino?.tela === 'fase') this.scene.start('fase', { faseId: destino.faseId });
     else if (destino) this.scene.start(destino.tela);

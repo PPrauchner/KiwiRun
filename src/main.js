@@ -6,6 +6,9 @@
 import { criarTextos } from './logica/textos.js';
 import { criarTeclado, registraTecla } from './logica/input.js';
 import { criarRecordes } from './logica/recorde.js';
+import { criarSilencio } from './logica/silencio.js';
+import { criarTrilha } from './logica/musica.js';
+import { manterTelaAcesa } from './logica/tela-acesa.js';
 import { Preload } from './cenas/preload.js';
 import { TelaInicial } from './cenas/tela-inicial.js';
 import { Menu } from './cenas/menu.js';
@@ -13,6 +16,7 @@ import { Fase } from './cenas/fase.js';
 import { Placar } from './cenas/placar.js';
 import { Iniciais } from './cenas/iniciais.js';
 import { Pausa } from './cenas/pausa.js';
+import { Creditos } from './cenas/creditos.js';
 import { FISICA } from './logica/pulo.js';
 
 /** Resolução interna; o Phaser escala para caber na janela, com barras fora de 16:9. */
@@ -61,11 +65,16 @@ const jogo = new Phaser.Game({
       instancia.registry.set('textos', criarTextos());
       instancia.registry.set('teclado', teclado);
       instancia.registry.set('recordes', criarRecordes(armazenamentoDoNavegador()));
+      instancia.registry.set('silencio', criarSilencio(armazenamentoDoNavegador()));
+      instancia.registry.set('trilha', criarTrilha());
     },
   },
   // A Pausa vem depois da Fase para ser desenhada por cima dela.
-  scene: [Preload, TelaInicial, Menu, Fase, Pausa, Iniciais, Placar],
+  scene: [Preload, TelaInicial, Menu, Creditos, Fase, Pausa, Iniciais, Placar],
 });
+
+// A tela do notebook do evento não pode apagar no meio de uma Fase.
+manterTelaAcesa(navigator, document);
 
 // Exposto para o smoke (Playwright) inspecionar a cena ativa.
 window.kiwirun = { jogo };

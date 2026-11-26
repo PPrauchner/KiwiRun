@@ -20,6 +20,7 @@ import { FISICA } from './pulo.js';
  * @property {(entrada: EntradaPulo) => number} atualizar - Devolve a nova velocidade vertical.
  * @property {() => number} quicar - Quique da Captura: devolve a velocidade de um pulo, que
  *   soltar o botão corta como no pulo variável.
+ * @property {boolean} pulou - Se o último `atualizar` começou um pulo (o quique não conta).
  */
 
 /**
@@ -32,9 +33,14 @@ export function criarControlePulo(fisica = FISICA) {
   let tempoForaDoChao = Infinity;
   let tempoDesdeAperto = Infinity;
   let subindoDoPulo = false;
+  let pulou = false;
 
   return {
+    get pulou() {
+      return pulou;
+    },
     atualizar({ dt, noChao, apertou, segurando, vy }) {
+      pulou = false;
       tempoForaDoChao = noChao ? 0 : tempoForaDoChao + dt;
       tempoDesdeAperto = apertou ? 0 : tempoDesdeAperto + dt;
 
@@ -44,6 +50,7 @@ export function criarControlePulo(fisica = FISICA) {
         tempoForaDoChao = Infinity;
         tempoDesdeAperto = Infinity;
         subindoDoPulo = true;
+        pulou = true;
         return -fisica.velocidadePulo;
       }
 

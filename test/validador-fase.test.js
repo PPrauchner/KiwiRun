@@ -151,6 +151,32 @@ test('espécie de Predador do mapa sem nome num idioma é problema', () => {
   assert.deepEqual(regras(validarFase(faseValida(), mapaValido(), contexto)), ['predador-sem-texto']);
 });
 
+/** Uma Placa no mapa, que ensina a ação com a chave de texto dada. */
+function placa(chave, acao) {
+  return { id: 8, name: 'placa', type: chave, point: true, x: 50, y: 72, width: 0, height: 0, properties: [{ name: 'acao', type: 'string', value: acao }] };
+}
+
+test('Placa com texto em todos os idiomas e uma ação conhecida não é problema', () => {
+  const mapa = mapaValido();
+  objetos(mapa).push(placa('fato.teste.1', 'pular'));
+
+  assert.deepEqual(validarFase(faseValida(), mapa, CONTEXTO), []);
+});
+
+test('Placa sem texto num idioma é problema', () => {
+  const mapa = mapaValido();
+  objetos(mapa).push(placa('placa.sem_texto', 'pular'));
+
+  assert.deepEqual(regras(validarFase(faseValida(), mapa, CONTEXTO)), ['placa-sem-texto', 'placa-sem-texto']);
+});
+
+test('Placa que ensina uma ação sem ícone de botão é problema', () => {
+  const mapa = mapaValido();
+  objetos(mapa).push(placa('fato.teste.1', 'voar'));
+
+  assert.deepEqual(regras(validarFase(faseValida(), mapa, CONTEXTO)), ['placa-acao']);
+});
+
 test('objeto fora do mapa é problema', () => {
   const mapa = mapaValido();
   objetos(mapa)[2].x = 10 * 18 + 1;
