@@ -62,7 +62,9 @@ export const MUNDOS = Object.freeze([
         mapa: 'assets/mapas/pecuaria.tmj',
         itens: ['la', 'leite'],
         chavesFato: ['fato.pecuaria.1', 'fato.pecuaria.2', 'fato.pecuaria.3'],
-        tempoReferencia: 60,
+        // Provisório até o playtest, pelo comprimento do percurso: 92 tiles andando dão
+        // ~12 s; com pulos, Capturas e a volta à Samambaia-prateada escondida, ~30 s.
+        tempoReferencia: 30,
       },
       faseEmBreve('porto'),
       faseEmBreve('foguete'),
