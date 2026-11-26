@@ -61,3 +61,29 @@ export function calcularPlacar({ tempoGasto, itens, capturas, samambaias }, desc
     tempoFinal: Math.max(0, tempoGasto - desconto),
   };
 }
+
+/**
+ * @typedef {Object} Tentativa
+ * @property {string} faseId - A Fase terminada.
+ * @property {number} tempoGasto - O Tempo gasto, em segundos.
+ * @property {{ item: string, coletados: number, total: number }[]} itens - Itens por tipo.
+ * @property {{ especie: string, quantidade: number }[]} capturas - Capturas por espécie
+ *   presente na Fase.
+ * @property {string[]} fatosEncontrados - Chaves dos Fatos encontrados, um por
+ *   Samambaia-prateada.
+ */
+
+/**
+ * Calcula o Placar a partir do que a tentativa fez, com os descontos do jogo.
+ *
+ * @param {Tentativa} tentativa - O que a tentativa fez, por tipo e por espécie.
+ * @returns {Placar} O Placar.
+ */
+export function calcularPlacarDaTentativa({ tempoGasto, itens, capturas, fatosEncontrados }) {
+  return calcularPlacar({
+    tempoGasto,
+    itens: itens.reduce((soma, { coletados }) => soma + coletados, 0),
+    capturas: capturas.reduce((soma, { quantidade }) => soma + quantidade, 0),
+    samambaias: fatosEncontrados.length,
+  });
+}

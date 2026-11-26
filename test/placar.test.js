@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { MUNDOS } from '../src/logica/catalogo.js';
-import { calcularPlacar, DESCONTOS as DESCONTOS_DO_JOGO } from '../src/logica/placar.js';
+import { calcularPlacar, calcularPlacarDaTentativa, DESCONTOS as DESCONTOS_DO_JOGO } from '../src/logica/placar.js';
 
 const DESCONTOS = Object.freeze({ item: 1, captura: 2, samambaia: 5 });
 
@@ -66,4 +66,16 @@ test('o desconto máximo de cada Fase não passa de 50% do seu tempo de referên
 
     assert.ok(desconto <= fase.tempoReferencia / 2, `${fase.id}: desconto máximo ${desconto} s, tempo de referência ${fase.tempoReferencia} s`);
   }
+});
+
+test('o Placar de uma tentativa soma os Itens por tipo, as Capturas por espécie e conta os Fatos encontrados', () => {
+  const placar = calcularPlacarDaTentativa({
+    faseId: 'pecuaria',
+    tempoGasto: 60,
+    itens: [{ item: 'la', coletados: 2, total: 8 }, { item: 'leite', coletados: 3, total: 10 }],
+    capturas: [{ especie: 'arminho', quantidade: 1 }, { especie: 'rato', quantidade: 2 }],
+    fatosEncontrados: ['fato.pecuaria.1'],
+  });
+
+  assert.deepEqual(placar, calcularPlacar({ tempoGasto: 60, itens: 5, capturas: 3, samambaias: 1 }));
 });
