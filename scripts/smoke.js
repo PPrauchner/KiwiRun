@@ -7,7 +7,7 @@
  * "Voltar" de volta ao Menu), escolhe a Pecuária, espera ela
  * carregada e confere o HUD,
  * a Fase parada até o primeiro input, a coleta de um Item, as Samambaias-prateadas e a
- * Fila de Fatos, a volta ao Checkpoint, e os Predadores: Captura, contato lateral e a
+ * Fila de Fatos, a volta ao Checkpoint, e os Predadores: Captura, o pulinho do arminho, contato lateral e a
  * invulnerabilidade depois de voltar, as Placas no idioma atual e as Ovelhas (paradas até o
  * primeiro input, atravessadas de lado, levando o Kiwi montado e devolvendo-o ao Checkpoint
  * quando ele fica prensado), as Iniciais do primeiro Recorde (o pulo segurado não
@@ -41,7 +41,7 @@ import { iniciarServidor } from './servidor.js';
 import { criarTextos } from '../src/logica/textos.js';
 import { VERSAO } from '../src/logica/versao.js';
 import { DURACAO_FATO } from '../src/logica/fila-fatos.js';
-import { buscarFase, chaveNomeItem, chaveNomePredador, MUNDOS } from '../src/logica/catalogo.js';
+import { buscarFase, chaveNomeItem, chaveNomePredador, COMPORTAMENTO_PREDADOR, MUNDOS } from '../src/logica/catalogo.js';
 import { SEGUNDOS_INVULNERAVEL } from '../src/logica/captura.js';
 import { SEGUNDOS_PRESO } from '../src/logica/ovelha.js';
 import { SEGUNDOS_BLOQUEIO } from '../src/logica/input.js';
@@ -67,6 +67,11 @@ const MAPA_PORTO = new URL('../assets/mapas/porto.tmj', import.meta.url);
 const ESPERA_MS = 400;
 /** Quanto esperar o bloqueio de entrada de uma tela nova vencer, em ms. */
 const ESPERA_BLOQUEIO_MS = SEGUNDOS_BLOQUEIO * 1000 + 200;
+/** Onde pôr o Kiwi para o arminho dar o pulinho sem encostar nele (pixels), e quanto esperar o meio dele. */
+const DISTANCIA_PULINHO = 40;
+const ESPERA_PULINHO_MS = COMPORTAMENTO_PREDADOR.arminho.pulinho.segundos * 500;
+/** De quantos pixels acima do Predador o Kiwi cai para capturá-lo: pouco, para o rato, rápido, não escapar. */
+const QUEDA_CAPTURA = 16;
 
 /**
  * Os objetos da camada `objetos` do mapa da Pecuária com esse nome.
@@ -360,7 +365,7 @@ async function verificarReiniciar(pagina) {
   await levarKiwi(checkpoint.x, checkpoint.y - 9);
   await pagina.waitForTimeout(ESPERA_MS / 2);
   const [alvo] = (await estadoDaFase(pagina)).predadores;
-  await levarKiwi(alvo.x, alvo.y - 40);
+  await levarKiwi(alvo.x, alvo.y - QUEDA_CAPTURA);
   await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.getScene(cena).capturas > 0, CENA_FASE, { timeout: 2000 }).catch(() => {});
   const antes = await estadoDaFase(pagina);
   if (antes.capturas !== 1 || antes.textos.includes(`0/${itens.length}`)) problemas.push('a preparação do reinício não coletou um Item nem capturou');
@@ -411,16 +416,26 @@ async function verificarPredadores(pagina, levarKiwi, checkpoint) {
   const [area] = await objetosDaPecuaria('predador');
   const nome = criarTextos().t(chaveNomePredador(area.type));
 
-  await levarKiwi(alvo.x, alvo.y - 40);
+  await levarKiwi(alvo.x, alvo.y - QUEDA_CAPTURA);
   await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.getScene(cena).capturas > 0, CENA_FASE, { timeout: 2000 }).catch(() => {});
   const capturou = await estadoDaFase(pagina);
   if (capturou.capturas !== 1 || capturou.predadores.length !== inicio.predadores.length - 1) problemas.push('cair sobre um Predador não o capturou');
   if (capturou.vy >= 0) problemas.push('a Captura não fez o Kiwi quicar');
   if (!capturou.textos.includes(nome)) problemas.push(`a Captura não mostrou o nome da espécie "${nome}"`);
 
-  // Espera o Kiwi assentar (fim do quique e do rótulo) e encosta de lado no próximo Predador.
+  // Espera o Kiwi assentar (fim do quique e do rótulo); o próximo Predador é o arminho, que
+  // dá um pulinho quando o Kiwi chega perto, sem encostar nele.
   await levarKiwi(checkpoint.x, checkpoint.y - 9);
   await pagina.waitForTimeout(ESPERA_MS * 3);
+  const { predadores: [arminho] } = await estadoDaFase(pagina);
+  await levarKiwi(arminho.x - DISTANCIA_PULINHO, arminho.y);
+  await pagina.waitForTimeout(ESPERA_PULINHO_MS);
+  const { predadores: [pulando] } = await estadoDaFase(pagina);
+  if (!(pulando.y < arminho.y)) problemas.push(`o arminho não deu o pulinho com o Kiwi perto: ${arminho.y} → ${pulando.y}`);
+
+  // Encosta de lado no arminho, de volta ao chão.
+  await levarKiwi(checkpoint.x, checkpoint.y - 9);
+  await pagina.waitForTimeout(ESPERA_MS * 2);
   const { predadores: [proximo] } = await estadoDaFase(pagina);
   await levarKiwi(proximo.x, proximo.y);
   await pagina.waitForTimeout(ESPERA_MS / 4);
