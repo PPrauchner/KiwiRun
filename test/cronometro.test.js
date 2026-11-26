@@ -70,9 +70,10 @@ test('ao reiniciar, o cronômetro zera e espera de novo o primeiro input', () =>
   assert.equal(cronometro.segundos, 1);
 });
 
-test('o Tempo gasto aparece em minutos, segundos e décimos, truncado', () => {
-  assert.equal(formatarTempo(0), '0:00.0');
-  assert.equal(formatarTempo(7.49), '0:07.4');
+test('o Tempo gasto aparece em segundos abaixo de 60 s e em minutos depois, truncado no décimo', () => {
+  assert.equal(formatarTempo(0), '0.0 s');
+  assert.equal(formatarTempo(7.49), '7.4 s');
+  assert.equal(formatarTempo(59.99), '59.9 s');
   assert.equal(formatarTempo(65.99), '1:05.9');
 });
 
