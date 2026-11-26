@@ -66,6 +66,7 @@ export default {
   'controles.teclado.pular': 'Space',
   'controles.teclado.confirmar': 'Enter / Space',
   'controles.teclado.pausar': 'Esc',
+  'inatividade.aviso': 'Still there? {segundos}...',
   'fato.pecuaria.1': 'Halter uses solar GPS collars that guide cattle with sound and vibration, no fences.',
   'fato.pecuaria.2': 'Halter has sold over 1 million collars to more than 2,000 farms.',
   'fato.pecuaria.3': 'In 2026, AgTech startup Halter was valued at 2 billion US dollars.',
