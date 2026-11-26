@@ -1,6 +1,6 @@
 /**
  * @file Gera os PNGs próprios na grade de 18×18: o sprite do Kiwi (faixa de quadros),
- * um sprite por Item, o da Samambaia-prateada e um por espécie de Predador, desenhados por código numa paleta de pixel art. Os tiles vêm do Kenney Pixel
+ * um sprite por Item, o da Samambaia-prateada, um por espécie de Predador, o da Ovelha e os ícones de botão das Placas, desenhados por código numa paleta de pixel art. Os tiles vêm do Kenney Pixel
  * Platformer (CC0). Sem dependências além do Node.
  *
  * Uso: `npm run gerar:sprites`.
@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { codificarPng } from './png.js';
 import { TILE } from '../src/logica/pulo.js';
 import { imagemItem, imagemPredador } from '../src/logica/catalogo.js';
+import { BOTOES } from '../src/logica/placa.js';
 
 const RAIZ_REPO = fileURLToPath(new URL('..', import.meta.url));
 export const IMAGEM_KIWI = 'assets/sprites/kiwi.png';
@@ -227,6 +228,80 @@ export const DESENHOS_PREDADORES = Object.freeze(
   Object.fromEntries(Object.entries(FORMAS_PREDADORES).map(([especie, forma]) => [especie, desenhoPredador(forma)])),
 );
 
+export const IMAGEM_OVELHA = 'assets/sprites/ovelha.png';
+
+/** Paleta da Ovelha: lã clara com sombra, cara e patas escuras. */
+const COR_OVELHA = Object.freeze({
+  la: 0xf4f0e6,
+  sombra: 0xcbc3b4,
+  contorno: 0x595652,
+  cara: 0x3f3f4a,
+});
+
+/** Círculos que formam o velo da Ovelha: centro e raio, em pixels. */
+const VELO_OVELHA = Object.freeze([[5, 9, 4], [9, 8, 4.5], [12, 10, 3.5], [7, 12, 3.5], [11, 12, 3.5]]);
+
+/**
+ * Ovelha virada para a direita: velo de círculos com o topo plano onde o Kiwi pisa, cara
+ * escura à frente e quatro patas.
+ *
+ * @type {Desenho}
+ */
+function desenhoOvelha(x, y) {
+  if (x === 16 && y === 8) return COR.olho;
+  if (naElipse(x, y, [15.5, 9.5, 2.5, 3])) return COR_OVELHA.cara;
+  if ([4, 6, 10, 12].includes(x) && y >= 14) return COR_OVELHA.cara;
+  const folga = Math.min(...VELO_OVELHA.map(([cx, cy, raio]) => Math.hypot(x + 0.5 - cx, y + 0.5 - cy) - raio));
+  if (folga > 0 || y < 5) return null;
+  if (folga > -1 || y === 5) return COR_OVELHA.contorno;
+  return y >= 12 ? COR_OVELHA.sombra : COR_OVELHA.la;
+}
+
+export const IMAGEM_BOTOES = 'assets/sprites/botoes.png';
+
+/** Paleta dos ícones de botão das Placas. */
+const COR_BOTAO = Object.freeze({
+  contorno: 0x222034,
+  tecla: 0xd8d8d8,
+  teclaLado: 0x8b8f99,
+  botao: 0xac3232,
+  simbolo: 0xffffff,
+});
+
+/** A letra "A" em pixels, 5×6, para o botão do 8BitDo. */
+const LETRA_A = Object.freeze(['.###.', '#...#', '#...#', '#####', '#...#', '#...#']);
+
+/**
+ * Tecla de espaço: tecla clara de lado escuro, com o símbolo ␣ no meio.
+ *
+ * @type {Desenho}
+ */
+function desenhoTeclaEspaco(x, y) {
+  if (x < 1 || x > 16 || y < 3 || y > 15) return null;
+  const canto = (x === 1 || x === 16) && (y === 3 || y === 15);
+  if (canto) return null;
+  if (x === 1 || x === 16 || y === 3 || y === 15) return COR_BOTAO.contorno;
+  if (y >= 13) return COR_BOTAO.teclaLado;
+  const simbolo = (y === 10 && x >= 5 && x <= 12) || ((x === 5 || x === 12) && y >= 8 && y <= 10);
+  return simbolo ? COR_BOTAO.contorno : COR_BOTAO.tecla;
+}
+
+/**
+ * Botão A do 8BitDo: botão redondo com a letra A clara.
+ *
+ * @type {Desenho}
+ */
+function desenhoBotaoA(x, y) {
+  const distancia = Math.hypot(x + 0.5 - 9, y + 0.5 - 9);
+  if (distancia > 8) return null;
+  if (distancia > 7) return COR_BOTAO.contorno;
+  const linhaLetra = LETRA_A[y - 6];
+  return linhaLetra?.[x - 7] === '#' ? COR_BOTAO.simbolo : COR_BOTAO.botao;
+}
+
+/** Desenho de cada ícone de botão, pelo nome do quadro. */
+const DESENHOS_BOTOES = Object.freeze({ espaco: desenhoTeclaEspaco, a: desenhoBotaoA });
+
 /**
  * Junta desenhos 18×18 numa grade, da esquerda para a direita e de cima para baixo.
  *
@@ -268,4 +343,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     await gravar(imagemPredador(especie), montarGrade([desenho], 1));
     console.log(`Gerado ${imagemPredador(especie)}`);
   }
+  await gravar(IMAGEM_OVELHA, montarGrade([desenhoOvelha], 1));
+  console.log(`Gerado ${IMAGEM_OVELHA}`);
+  await gravar(IMAGEM_BOTOES, montarGrade(BOTOES.map((botao) => DESENHOS_BOTOES[botao]), BOTOES.length));
+  console.log(`Gerado ${IMAGEM_BOTOES}`);
 }

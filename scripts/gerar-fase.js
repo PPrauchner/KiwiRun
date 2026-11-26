@@ -4,10 +4,14 @@
  * tileset embutido e sem compressão, para que abrir e salvar no Tiled seja opcional.
  *
  * Na camada `objetos` ficam pontos: `inicio`, cada `checkpoint` (no chão) e cada `item`
- * (o id do Item no tipo do objeto) e cada `samambaia` (a chave do Fato no tipo), além das
- * áreas `fim` e `predador` (a espécie no tipo; o Predador patrulha de uma ponta à outra). A Samambaia-prateada escondida ganha uma folhagem na camada `frente` por cima.
+ * (o id do Item no tipo do objeto), cada `samambaia` (a chave do Fato no tipo) e cada
+ * `placa` (a chave do texto no tipo e a ação na propriedade `acao`, sobre um tile de placa
+ * na camada `fundo`), além das
+ * áreas `fim` e `predador` (a espécie no tipo; o Predador patrulha de uma ponta à outra) e `ovelha` (a
+ * Ovelha anda de uma ponta à outra, plataforma móvel de mão única). A Samambaia-prateada escondida ganha uma folhagem na camada `frente` por cima.
  *
- * Recusa vãos, degraus, plataformas e Itens além das constantes do pulo, e recusa sobrescrever
+ * Recusa vãos, degraus, plataformas e Itens além das constantes do pulo, trajetos de
+ * Ovelha com vão de esmagamento, e recusa sobrescrever
  * um `.tmj` existente sem `--force` (o arquivo pode ter sido enfeitado no Tiled).
  *
  * Uso: `npm run gerar:fase -- <id> [--force] [--saida <arquivo>]`.
@@ -25,6 +29,8 @@ const COLUNA_INICIO = 2;
 /** Colunas entre o fim do último chão e a bandeira de chegada. */
 const RECUO_FIM = 3;
 const ALTURA_FIM = 3;
+/** Tiles acima do trajeto da Ovelha que ficam livres: a Ovelha e o Kiwi montado nela. */
+const ALTURA_LIVRE_OVELHA = 2;
 
 /**
  * @typedef {{ chao: number, altura: number } | { vao: number }} Trecho
@@ -61,6 +67,20 @@ const ALTURA_FIM = 3;
  */
 
 /**
+ * @typedef {Object} OvelhaNoMapa
+ * @property {number} de - Primeira coluna do trajeto.
+ * @property {number} ate - Última coluna do trajeto; de `de` a `ate` o chão é plano e,
+ *   acima dele e nas colunas vizinhas, nada sólido onde o Kiwi montado seria prensado.
+ */
+
+/**
+ * @typedef {Object} PlacaNoMapa
+ * @property {number} coluna - Coluna da Placa; precisa ter chão.
+ * @property {string} chave - Chave do texto da Placa nos Textos.
+ * @property {string} acao - A ação que a Placa ensina, cujos botões ela mostra.
+ */
+
+/**
  * @typedef {Object} DescricaoFase
  * @property {number} altura - Altura do mapa, em tiles.
  * @property {Trecho[]} trechos - Da esquerda para a direita; o primeiro e o último são chão.
@@ -69,6 +89,8 @@ const ALTURA_FIM = 3;
  * @property {number[]} [checkpoints] - Colunas dos Checkpoints, além do início.
  * @property {SamambaiaNoMapa[]} [samambaias] - As Samambaias-prateadas da Fase.
  * @property {PredadorNoMapa[]} [predadores] - Os Predadores e suas patrulhas.
+ * @property {OvelhaNoMapa[]} [ovelhas] - As Ovelhas e seus trajetos.
+ * @property {PlacaNoMapa[]} [placas] - As Placas que ensinam um controle.
  */
 
 /**
@@ -233,14 +255,38 @@ export function gerarMapa(descricao) {
     if (escondida) frente.pintar(coluna, linha, TILES.folhagem);
     objetos.push(ponto('samambaia', chave, coluna, (linha + 0.5) * TILE));
   }
-  for (const { especie, de, ate } of descricao.predadores ?? []) {
+  const plano = (de, ate) => {
     const colunas = chao.slice(de, ate + 1);
-    const plano = colunas.length === ate - de + 1 && colunas.every((alturaChao) => alturaChao > 0 && alturaChao === colunas[0]);
-    if (!plano) throw new Error(`predador ${especie} entre as colunas ${de} e ${ate}: a patrulha pede chão plano, sem vão`);
+    return colunas.length === ate - de + 1 && colunas.every((alturaChao) => alturaChao > 0 && alturaChao === colunas[0]);
+  };
+  const areaSobreOChao = (name, type, de, ate) => ({
+    height: TILE, name, rotation: 0, type, visible: true,
+    width: (ate - de + 1) * TILE, x: de * TILE, y: (topo(de) - 1) * TILE,
+  });
+  for (const { coluna, chave, acao } of descricao.placas ?? []) {
+    if (!chao[coluna]) throw new Error(`placa ${chave} na coluna ${coluna} sem chão embaixo`);
+    fundo.pintar(coluna, topo(coluna) - 1, TILES.placa);
     objetos.push({
-      height: TILE, name: 'predador', rotation: 0, type: especie, visible: true,
-      width: (ate - de + 1) * TILE, x: de * TILE, y: (topo(de) - 1) * TILE,
+      ...ponto('placa', chave, coluna, topo(coluna) * TILE),
+      properties: [{ name: 'acao', type: 'string', value: acao }],
     });
+  }
+  for (const { especie, de, ate } of descricao.predadores ?? []) {
+    if (!plano(de, ate)) throw new Error(`predador ${especie} entre as colunas ${de} e ${ate}: a patrulha pede chão plano, sem vão`);
+    objetos.push(areaSobreOChao('predador', especie, de, ate));
+  }
+  for (const { de, ate } of descricao.ovelhas ?? []) {
+    if (!plano(de, ate)) throw new Error(`ovelha entre as colunas ${de} e ${ate}: o trajeto pede chão plano, sem vão`);
+    // A Ovelha ocupa a linha logo acima do chão e o Kiwi montado nela, a de cima: nada sólido
+    // ali, nem nas colunas vizinhas, para o Kiwi nunca ser prensado.
+    for (let coluna = Math.max(0, de - 1); coluna <= Math.min(largura - 1, ate + 1); coluna += 1) {
+      for (let linha = topo(de) - ALTURA_LIVRE_OVELHA; linha < topo(de); linha += 1) {
+        if (colisao.camada.data[linha * largura + coluna] !== 0) {
+          throw new Error(`ovelha entre as colunas ${de} e ${ate}: algo sólido na coluna ${coluna}, linha ${linha}, faz vão de esmagamento`);
+        }
+      }
+    }
+    objetos.push(areaSobreOChao('ovelha', '', de, ate));
   }
   objetos.forEach((objeto, indice) => { objeto.id = indice + 1; });
 
