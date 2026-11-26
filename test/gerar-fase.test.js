@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { gerarMapa } from '../scripts/gerar-fase.js';
 import { FISICA, PULO, TILE } from '../src/logica/pulo.js';
-import { PREDADORES, buscarFase } from '../src/logica/catalogo.js';
+import { COMPORTAMENTO_PREDADOR, PREDADORES, buscarFase } from '../src/logica/catalogo.js';
 import { NOME, TILESET_PORTO } from '../scripts/tileset.js';
 
 const SCRIPT = fileURLToPath(new URL('../scripts/gerar-fase.js', import.meta.url));
@@ -242,19 +242,42 @@ test('a Pecuária versionada tem uma Samambaia-prateada escondida atrás da cama
 });
 
 test('cada Predador vira uma área "predador" com a espécie no tipo, um tile acima do chão entre as colunas da patrulha', () => {
-  const mapa = gerarMapa(descricao({ predadores: [{ especie: 'rato', de: 3, ate: 7 }] }));
+  const mapa = gerarMapa(descricao({ predadores: [{ especie: 'arminho', de: 3, ate: 7 }] }));
   const [predador] = objetosChamados(mapa, 'predador');
 
   assert.deepEqual(
     { type: predador.type, x: predador.x, y: predador.y, width: predador.width, height: predador.height },
-    { type: 'rato', x: 3 * TILE, y: (mapa.height - 3 - 1) * TILE, width: 5 * TILE, height: TILE },
+    { type: 'arminho', x: 3 * TILE, y: (mapa.height - 3 - 1) * TILE, width: 5 * TILE, height: TILE },
   );
 });
 
 test('patrulha de Predador sobre um vão ou um degrau é recusada', () => {
-  assert.throws(() => gerarMapa(descricao({ predadores: [{ especie: 'rato', de: 8, ate: 13 }] })), /predador/i);
+  assert.throws(() => gerarMapa(descricao({ predadores: [{ especie: 'arminho', de: 8, ate: 13 }] })), /predador/i);
   const comDegrau = descricao({ trechos: [{ chao: 5, altura: 3 }, { chao: 5, altura: 4 }] });
-  assert.throws(() => gerarMapa({ ...comDegrau, predadores: [{ especie: 'rato', de: 2, ate: 7 }] }), /predador/i);
+  assert.throws(() => gerarMapa({ ...comDegrau, predadores: [{ especie: 'arminho', de: 2, ate: 7 }] }), /predador/i);
+});
+
+test('patrulha de rato mais longa que a patrulha máxima da espécie é recusada', () => {
+  const { patrulhaMaxima } = COMPORTAMENTO_PREDADOR.rato;
+  assert.doesNotThrow(() => gerarMapa(descricao({ predadores: [{ especie: 'rato', de: 1, ate: patrulhaMaxima }] })));
+  assert.throws(() => gerarMapa(descricao({ predadores: [{ especie: 'rato', de: 1, ate: patrulhaMaxima + 1 }] })), /rato/);
+});
+
+test('o gambá-australiano patrulha sobre uma plataforma alta, um tile acima dela', () => {
+  const plataformas = [{ coluna: 2, largura: 5, alturaSobreChao: 3 }];
+  const mapa = gerarMapa(descricao({ plataformas, predadores: [{ especie: 'gamba', de: 2, ate: 6 }] }));
+  const [predador] = objetosChamados(mapa, 'predador');
+
+  assert.deepEqual(
+    { type: predador.type, x: predador.x, y: predador.y, width: predador.width },
+    { type: 'gamba', x: 2 * TILE, y: (mapa.height - 3 - 3 - 1) * TILE, width: 5 * TILE },
+  );
+});
+
+test('gambá-australiano no chão ou além da ponta da plataforma é recusado', () => {
+  const plataformas = [{ coluna: 2, largura: 5, alturaSobreChao: 3 }];
+  assert.throws(() => gerarMapa(descricao({ predadores: [{ especie: 'gamba', de: 2, ate: 6 }] })), /gamba/);
+  assert.throws(() => gerarMapa(descricao({ plataformas, predadores: [{ especie: 'gamba', de: 2, ate: 7 }] })), /gamba/);
 });
 
 test('a Pecuária versionada tem Predadores das três espécies do catálogo', async () => {
@@ -263,6 +286,27 @@ test('a Pecuária versionada tem Predadores das três espécies do catálogo', a
 
   assert.deepEqual([...new Set(especies)].sort(), [...PREDADORES].sort());
 });
+
+for (const id of ['pecuaria', 'porto']) {
+  test(`no ${id} versionado, o rato patrulha mais curto que os outros e o gambá-australiano fica no alto de uma plataforma`, async () => {
+    const mapa = JSON.parse(await readFile(new URL(`../assets/mapas/${id}.tmj`, import.meta.url), 'utf8'));
+    const predadores = objetosChamados(mapa, 'predador');
+    const da = (especie) => predadores.filter((predador) => predador.type === especie);
+    const outros = predadores.filter((predador) => predador.type !== 'rato');
+    for (const rato of da('rato')) assert.ok(outros.every((outro) => rato.width < outro.width), `rato de ${rato.width / TILE} colunas`);
+
+    const colisao = mapa.layers.find((camada) => camada.name === 'colisao');
+    const solido = (coluna, linha) => colisao.data[linha * mapa.width + coluna] !== 0;
+    assert.ok(da('gamba').length > 0, 'sem gambá-australiano');
+    for (const gamba of da('gamba')) {
+      const linhaApoio = (gamba.y + gamba.height) / TILE;
+      for (let coluna = gamba.x / TILE; coluna < (gamba.x + gamba.width) / TILE; coluna += 1) {
+        assert.ok(solido(coluna, linhaApoio), `gambá sem apoio na coluna ${coluna}`);
+        assert.ok(!solido(coluna, linhaApoio + 1), `gambá no chão, não numa plataforma alta, na coluna ${coluna}`);
+      }
+    }
+  });
+}
 
 test('cada Ovelha vira uma área "ovelha" um tile acima do chão entre as colunas do trajeto', () => {
   const mapa = gerarMapa(descricao({ ovelhas: [{ de: 2, ate: 6 }] }));
