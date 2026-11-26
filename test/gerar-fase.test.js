@@ -381,3 +381,18 @@ test('pilha de contêineres mais alta que o pulo, ou sobre um vão, é recusada'
   assert.throws(() => gerarMapa(descricao({ conteineres: [{ coluna: 3, largura: 2, altura: PULO.segurado.altura + 1 }] })), /contêiner/);
   assert.throws(() => gerarMapa(descricao({ conteineres: [{ coluna: 9, largura: 2, altura: 1 }] })), /contêiner/);
 });
+
+test('cada esteira vira uma área "esteira" no tile de cima do chão, com o sentido na propriedade', () => {
+  const mapa = gerarMapa(descricao({ esteiras: [{ de: 3, ate: 7, sentido: -1 }] }));
+  const [esteira] = objetosChamados(mapa, 'esteira');
+
+  assert.deepEqual(
+    { x: esteira.x, y: esteira.y, width: esteira.width, height: esteira.height, properties: esteira.properties },
+    { x: 3 * TILE, y: (mapa.height - 3) * TILE, width: 5 * TILE, height: TILE, properties: [{ name: 'sentido', type: 'int', value: -1 }] },
+  );
+});
+
+test('esteira sobre um vão, ou com sentido que não é 1 nem -1, é recusada', () => {
+  assert.throws(() => gerarMapa(descricao({ esteiras: [{ de: 8, ate: 13, sentido: 1 }] })), /esteira/);
+  assert.throws(() => gerarMapa(descricao({ esteiras: [{ de: 2, ate: 6, sentido: 0 }] })), /esteira/);
+});
