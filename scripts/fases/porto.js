@@ -7,7 +7,7 @@
  * Percurso: o início ensina a pular nos Predadores (a Placa antes de um rato sozinho em chão
  * plano) e sobe as primeiras pilhas de contêiner; seguem a esteira que leva à direita, o
  * guindaste que sobe ao cais alto do arminho, a esteira que empurra de volta (com o gambá
- * depois dela) e o último cais, onde um guindaste leva ao alto dos contêineres. Há um
+ * na plataforma alta depois dela) e o último cais, onde um guindaste leva ao alto dos contêineres. Há um
  * Checkpoint antes de cada trecho difícil, todos a poucos segundos uns dos outros.
  */
 export default {
@@ -25,7 +25,10 @@ export default {
     { vao: 3 },
     { chao: 14, altura: 4 },
   ],
-  plataformas: [],
+  // A plataforma alta do gambá, depois da esteira que empurra de volta.
+  plataformas: [
+    { coluna: 75, largura: 6, alturaSobreChao: 3 },
+  ],
   conteineres: [
     { coluna: 16, largura: 2, altura: 2 },
     { coluna: 19, largura: 2, altura: 3 },
@@ -46,9 +49,10 @@ export default {
   placas: [
     { coluna: 5, chave: 'placa.capturar', acao: 'pular' },
   ],
-  // O rato do início fica sozinho, em chão plano, depois da Placa.
+  // O rato do início fica sozinho, em chão plano, depois da Placa; o gambá-australiano, na
+  // plataforma alta, guarda uma Kiwifruta.
   predadores: [
-    { especie: 'rato', de: 9, ate: 14 },
+    { especie: 'rato', de: 10, ate: 13 },
     { especie: 'arminho', de: 57, ate: 62 },
     { especie: 'gamba', de: 75, ate: 80 },
   ],
@@ -68,7 +72,7 @@ export default {
     { coluna: 60, item: 'kiwifruta', alturaSobreChao: 2 },
     { coluna: 70, item: 'caixa', alturaSobreChao: 1 },
     { coluna: 73, item: 'caixa', alturaSobreChao: 1 },
-    { coluna: 77, item: 'kiwifruta', alturaSobreChao: 2 },
+    { coluna: 77, item: 'kiwifruta', alturaSobreChao: 4 },
     { coluna: 86, item: 'kiwifruta', alturaSobreChao: 1 },
     { coluna: 93, item: 'caixa', alturaSobreChao: 1 },
   ],

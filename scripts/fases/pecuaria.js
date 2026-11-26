@@ -34,11 +34,12 @@ export default {
     { coluna: 5, chave: 'placa.capturar', acao: 'pular' },
     { coluna: 16, chave: 'placa.pular_alto', acao: 'pular' },
   ],
-  // O rato do início fica sozinho, em chão plano, para a primeira Captura.
+  // O rato do início fica sozinho, em chão plano, para a primeira Captura; o gambá-australiano
+  // patrulha a plataforma alta da ordenha final.
   predadores: [
-    { especie: 'rato', de: 9, ate: 14 },
+    { especie: 'rato', de: 10, ate: 13 },
     { especie: 'arminho', de: 52, ate: 59 },
-    { especie: 'gamba', de: 71, ate: 79 },
+    { especie: 'gamba', de: 74, ate: 78 },
   ],
   // No pasto, sob a plataforma alta e com o chão livre em volta: sem vão de esmagamento.
   ovelhas: [
