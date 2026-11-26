@@ -11,7 +11,10 @@
  * da tela sem pausar o jogo. Os Predadores patrulham entre as pontas da sua área no mapa:
  * cair sobre um é Captura (armadilha, quique e o nome da espécie flutuando); qualquer outro
  * contato devolve o Kiwi ao Checkpoint, onde ele fica invulnerável, piscando, por ~1 s. Os
- * controles vêm do Input unificado, que ignora a entrada nos primeiros ~0,5 s da Fase.
+ * controles vêm do Input unificado, que ignora a entrada nos primeiros ~0,5 s da Fase. As
+ * Ovelhas andam de uma ponta à outra do trajeto como plataformas sólidas só por cima: levam
+ * o Kiwi montado, não o ferem e, se ele ficar prensado em cima de uma, o devolvem ao Checkpoint.
+ * Cada Placa mostra, fixa sobre o seu poste, os ícones dos botões e uma frase no idioma atual.
  *
  * Start ou Esc, a janela perder o foco (Alt+Tab, notificação) ou um controle desconectar
  * abrem a Pausa por cima e pausam esta cena: o jogo, o cronômetro e a Fila de Fatos param
@@ -25,7 +28,9 @@ import { criarFilaDeFatos, LARGURA_FATO } from '../logica/fila-fatos.js';
 import { criarInput } from '../logica/input.js';
 import { calcularPlacarDaTentativa } from '../logica/placar.js';
 import { FISICA, TILE } from '../logica/pulo.js';
-import { FONTE, TEXTURA_KIWI, TEXTURA_QUADROS_TILESET, TEXTURA_SAMAMBAIA, TEXTURA_TILESET, texturaPredador } from './preload.js';
+import { criarVigiaPreso } from '../logica/ovelha.js';
+import { acaoDaPlaca, BOTOES, BOTOES_DA_ACAO } from '../logica/placa.js';
+import { FONTE, TEXTURA_BOTOES, TEXTURA_KIWI, TEXTURA_OVELHA, TEXTURA_QUADROS_TILESET, TEXTURA_SAMAMBAIA, TEXTURA_TILESET, texturaPredador } from './preload.js';
 import { lerEntrada } from './entrada.js';
 import { criarVigiaInatividade } from './inatividade.js';
 
@@ -53,10 +58,15 @@ const PROFUNDIDADE_HUD = 100;
 const FOLGA_FATO = 4;
 const COR_FUNDO_FATO = 0x1b2a3a;
 const OPACIDADE_FUNDO_FATO = 0.8;
+/** Aviso da Placa, sobre o poste: folga entre ícones, texto e borda da faixa escura. */
+const FOLGA_PLACA = 3;
 
 /** Predador: hitbox no sprite de 18×18 e velocidade da patrulha, em pixels por segundo. */
 const HITBOX_PREDADOR = Object.freeze({ largura: 14, altura: 10, x: 2, y: 8 });
 const VELOCIDADE_PREDADOR = 30;
+/** Ovelha: hitbox no sprite de 18×18 (o topo é o velo onde o Kiwi pisa) e velocidade do trajeto. */
+const HITBOX_OVELHA = Object.freeze({ largura: 14, altura: 13, x: 1, y: 5 });
+const VELOCIDADE_OVELHA = 24;
 /** Armadilha da Captura: a caixa que desce sobre o Predador, e quanto o rótulo sobe. */
 const COR_ARMADILHA = 0x8f563b;
 const COR_BORDA_ARMADILHA = 0x45283c;
@@ -144,6 +154,8 @@ export class Fase extends Phaser.Scene {
     this.limiteQueda = mapa.heightInPixels + TILE;
 
     this.physics.world.setBounds(0, 0, mapa.widthInPixels, mapa.heightInPixels, true, true, true, false);
+    // Antes do Kiwi, para ele passar na frente do aviso.
+    for (const placa of objetos.filter((objeto) => objeto.name === 'placa')) this.criarPlaca(placa);
     this.kiwi = this.criarKiwi();
     frente.setDepth(this.kiwi.depth + 1);
     this.physics.add.collider(this.kiwi, colisao);
@@ -164,6 +176,7 @@ export class Fase extends Phaser.Scene {
     this.criarSamambaias(objetos.filter((objeto) => objeto.name === 'samambaia'));
     for (const checkpoint of objetos.filter((objeto) => objeto.name === 'checkpoint')) this.criarCheckpoint(checkpoint);
     this.criarPredadores(objetos.filter((objeto) => objeto.name === 'predador'));
+    this.criarOvelhas(objetos.filter((objeto) => objeto.name === 'ovelha'));
 
     this.configurarCamera(mapa);
     this.entrada = criarInput();
@@ -291,14 +304,48 @@ export class Fase extends Phaser.Scene {
     this.physics.add.overlap(this.kiwi, this.predadores, (_kiwi, predador) => this.tocarPredador(predador));
   }
 
-  /** Vira cada Predador ao chegar a uma ponta da patrulha. */
+  /** Vira cada Predador e cada Ovelha ao chegar a uma ponta do trajeto. */
   patrulhar() {
-    for (const predador of this.predadores.getChildren()) {
-      const { minX, maxX } = predador.data.values;
-      if (predador.x <= minX) predador.setVelocityX(VELOCIDADE_PREDADOR);
-      else if (predador.x >= maxX) predador.setVelocityX(-VELOCIDADE_PREDADOR);
-      predador.setFlipX(predador.body.velocity.x < 0);
+    const andantes = [
+      [this.predadores, VELOCIDADE_PREDADOR],
+      [this.ovelhas, VELOCIDADE_OVELHA],
+    ];
+    for (const [grupo, velocidade] of andantes) {
+      for (const andante of grupo.getChildren()) {
+        const { minX, maxX } = andante.data.values;
+        if (andante.x <= minX) andante.setVelocityX(velocidade);
+        else if (andante.x >= maxX) andante.setVelocityX(-velocidade);
+        andante.setFlipX(andante.body.velocity.x < 0);
+      }
     }
+  }
+
+  /**
+   * Põe cada Ovelha na ponta esquerda do seu trajeto, já andando para a direita: plataforma
+   * móvel sólida só por cima, que leva o Kiwi montado e não o fere. A física pausada a segura
+   * até o primeiro mover ou pular.
+   *
+   * @param {Phaser.Types.Tilemaps.TiledObject[]} areas - As áreas `ovelha` do mapa.
+   */
+  criarOvelhas(areas) {
+    this.ovelhas = this.physics.add.group({ allowGravity: false, immovable: true });
+    for (const { x, y, width: largura, height: altura } of areas) {
+      const ovelha = this.ovelhas.create(x + TILE / 2, y + altura - TILE / 2, TEXTURA_OVELHA);
+      ovelha.body.setSize(HITBOX_OVELHA.largura, HITBOX_OVELHA.altura).setOffset(HITBOX_OVELHA.x, HITBOX_OVELHA.y);
+      // O grupo zera o atrito; sem ele, a Ovelha andaria por baixo do Kiwi sem levá-lo.
+      ovelha.body.setFrictionX(1);
+      ovelha.body.checkCollision.down = false;
+      ovelha.body.checkCollision.left = false;
+      ovelha.body.checkCollision.right = false;
+      ovelha.setData({ minX: x + TILE / 2, maxX: x + largura - TILE / 2 });
+      ovelha.setVelocityX(VELOCIDADE_OVELHA);
+    }
+    this.sobreOvelha = false;
+    this.vigiaPreso = criarVigiaPreso();
+    // Só separa quando o Kiwi cai sobre o velo: o colisor avisa que ele está montado neste passo.
+    this.physics.add.collider(this.kiwi, this.ovelhas, () => {
+      this.sobreOvelha = true;
+    });
   }
 
   /** @param {Phaser.Types.Physics.Arcade.SpriteWithDynamicBody} predador - O Predador que o Kiwi tocou. */
@@ -402,6 +449,29 @@ export class Fase extends Phaser.Scene {
     this.fundoFato.setSize(largura + FOLGA_FATO * 2, altura + FOLGA_FATO * 2).setVisible(visivel);
   }
 
+  /**
+   * Põe o aviso fixo de uma Placa sobre o seu poste: os ícones dos botões da ação (teclado e
+   * 8BitDo) e a frase curta no idioma atual, numa faixa escura. Não pausa nada.
+   *
+   * @param {Phaser.Types.Tilemaps.TiledObject} placa - O ponto `placa`, no chão.
+   */
+  criarPlaca(placa) {
+    const { x, y, type: chave } = placa;
+    const botoes = BOTOES_DA_ACAO[acaoDaPlaca(placa)] ?? [];
+    const centroY = y - TILE * 1.5 - FOLGA_PLACA * 2;
+    const texto = this.add.bitmapText(0, centroY, FONTE, this.registry.get('textos').t(chave), TAMANHO_FONTE_HUD).setOrigin(0, 0.5);
+    const larguraIcones = botoes.length * (TILE + FOLGA_PLACA);
+    const largura = larguraIcones + texto.width;
+    const esquerda = x - largura / 2;
+    this.add.rectangle(x, centroY, largura + FOLGA_PLACA * 2, TILE + FOLGA_PLACA * 2, COR_FUNDO_FATO, OPACIDADE_FUNDO_FATO);
+    botoes.forEach((botao, indice) => {
+      this.add.image(esquerda + indice * (TILE + FOLGA_PLACA) + TILE / 2, centroY, TEXTURA_BOTOES, BOTOES.indexOf(botao));
+    });
+    texto.setX(esquerda + larguraIcones);
+    // O texto foi criado antes da faixa: fica na frente dela.
+    this.children.bringToTop(texto);
+  }
+
   /** @returns {Phaser.Types.Physics.Arcade.SpriteWithDynamicBody} O Kiwi no Checkpoint. */
   criarKiwi() {
     const kiwi = this.physics.add.sprite(this.checkpoint.x, this.checkpoint.y, TEXTURA_KIWI, 0);
@@ -431,11 +501,13 @@ export class Fase extends Phaser.Scene {
     this.piscarInvulneravel(dt);
     const direcao = this.acoes.horizontal;
     const { body } = this.kiwi;
+    const { sobreOvelha } = this;
+    this.sobreOvelha = false;
 
     body.setVelocityX(direcao * FISICA.velocidadeAndar);
     body.setVelocityY(this.controlePulo.atualizar({
       dt,
-      noChao: body.blocked.down,
+      noChao: body.blocked.down || sobreOvelha,
       apertou: this.apertouPular,
       segurando: this.acoes.segurandoPulo,
       vy: body.velocity.y,
@@ -446,9 +518,10 @@ export class Fase extends Phaser.Scene {
       this.kiwi.setFlipX(direcao < 0);
       this.cameras.main.setFollowOffset(-OLHAR_A_FRENTE * direcao, 0);
     }
-    this.animar(direcao, body.blocked.down);
+    this.animar(direcao, body.blocked.down || sobreOvelha);
 
-    if (this.kiwi.y > this.limiteQueda) this.voltarAoCheckpoint();
+    const prensado = sobreOvelha && (body.blocked.up || body.blocked.left || body.blocked.right);
+    if (this.vigiaPreso.atualizar(dt, prensado) || this.kiwi.y > this.limiteQueda) this.voltarAoCheckpoint();
   }
 
   /**
