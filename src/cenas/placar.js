@@ -19,6 +19,8 @@ import { arredondarDecimos } from '../logica/recorde.js';
 import { lerEntrada } from './entrada.js';
 import { criarVigiaInatividade } from './inatividade.js';
 import { criarControleSilencio } from './silencio.js';
+import { tocarMusica } from './musica.js';
+import { ANDAMENTO_BASE } from '../logica/musica.js';
 
 /**
  * @typedef {import('../logica/placar.js').Tentativa & { novoRecorde: boolean }} DadosPlacar
@@ -71,6 +73,7 @@ export class Placar extends Phaser.Scene {
     this.criarOpcoes();
     this.entrada = criarInput();
     this.silencio = criarControleSilencio(this);
+    tocarMusica(this, ANDAMENTO_BASE);
     this.inatividade = criarVigiaInatividade(this);
     this.redesenhar();
   }

@@ -1,9 +1,10 @@
 /**
- * @file Cena Boot/Preload: carrega os assets comuns (efeitos sonoros incluídos), aplica o
+ * @file Cena Boot/Preload: carrega os assets comuns (efeitos sonoros e música incluídos), aplica o
  * Silêncio gravado e segue para a Tela inicial.
  */
 import { PREDADORES, imagemPredador } from '../logica/catalogo.js';
 import { chaveEfeito, EFEITOS } from '../logica/efeitos.js';
+import { andamentosDoJogo, chaveMusica, faixaMusica } from '../logica/musica.js';
 import { aplicarSilencio } from './silencio.js';
 
 export const FONTE = 'kiwirun';
@@ -47,6 +48,7 @@ export class Preload extends Phaser.Scene {
     for (const especie of PREDADORES) this.load.image(texturaPredador(especie), imagemPredador(especie));
     this.load.image(TEXTURA_SILENCIO, 'assets/sprites/silencio.png');
     for (const [efeito, caminho] of Object.entries(EFEITOS)) this.load.audio(chaveEfeito(efeito), caminho);
+    for (const andamento of andamentosDoJogo()) this.load.audio(chaveMusica(andamento), faixaMusica(andamento));
   }
 
   create() {

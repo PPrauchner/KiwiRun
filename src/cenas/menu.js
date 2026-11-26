@@ -16,6 +16,8 @@ import { textoRecorde } from '../logica/recorde.js';
 import { lerEntrada } from './entrada.js';
 import { criarVigiaInatividade } from './inatividade.js';
 import { criarControleSilencio } from './silencio.js';
+import { tocarMusica } from './musica.js';
+import { ANDAMENTO_BASE } from '../logica/musica.js';
 
 /** Tamanho nativo da fonte bitmap; múltiplos inteiros mantêm a pixel art nítida. */
 const TAMANHO_FONTE = 12;
@@ -54,6 +56,7 @@ export class Menu extends Phaser.Scene {
     this.mundoMostrado = null;
     this.entrada = criarInput();
     this.silencio = criarControleSilencio(this);
+    tocarMusica(this, ANDAMENTO_BASE);
     this.inatividade = criarVigiaInatividade(this);
     this.redesenhar();
   }

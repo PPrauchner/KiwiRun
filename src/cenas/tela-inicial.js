@@ -15,6 +15,8 @@ import { criarInput } from '../logica/input.js';
 import { lerEntrada } from './entrada.js';
 import { criarVigiaInatividade } from './inatividade.js';
 import { criarControleSilencio } from './silencio.js';
+import { tocarMusica } from './musica.js';
+import { ANDAMENTO_BASE } from '../logica/musica.js';
 import { criarSeletorIdioma } from '../logica/seletor-idioma.js';
 import { criarAtalhoZerar } from '../logica/recorde.js';
 import { deveAvisarToque } from '../logica/aviso-toque.js';
@@ -71,6 +73,7 @@ export class TelaInicial extends Phaser.Scene {
     }
     // Sem aviso aqui; a Volta reabre a Tela inicial em PT.
     this.silencio = criarControleSilencio(this);
+    tocarMusica(this, ANDAMENTO_BASE);
     this.inatividade = criarVigiaInatividade(this, { comAviso: false });
   }
 

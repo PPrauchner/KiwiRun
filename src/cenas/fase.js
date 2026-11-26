@@ -37,6 +37,8 @@ import { FONTE, TEXTURA_BOTOES, TEXTURA_KIWI, TEXTURA_OVELHA, TEXTURA_QUADROS_TI
 import { lerEntrada } from './entrada.js';
 import { criarVigiaInatividade } from './inatividade.js';
 import { criarControleSilencio } from './silencio.js';
+import { tocarMusica } from './musica.js';
+import { andamentoDaFase } from '../logica/musica.js';
 
 /** Tamanho da hitbox do Kiwi, menor que o sprite de 18×18, e seu deslocamento nele. */
 const HITBOX = Object.freeze({ largura: 10, altura: 11, x: 4, y: 7 });
@@ -195,6 +197,7 @@ export class Fase extends Phaser.Scene {
     this.physics.pause();
     this.criarHud();
     this.silencio = criarControleSilencio(this);
+    tocarMusica(this, andamentoDaFase(this.fase));
     this.inatividade = criarVigiaInatividade(this);
   }
 

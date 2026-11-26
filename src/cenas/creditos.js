@@ -10,6 +10,8 @@ import { criarInput } from '../logica/input.js';
 import { lerEntrada } from './entrada.js';
 import { criarVigiaInatividade } from './inatividade.js';
 import { criarControleSilencio } from './silencio.js';
+import { tocarMusica } from './musica.js';
+import { ANDAMENTO_BASE } from '../logica/musica.js';
 
 /** Tamanho nativo da fonte bitmap; múltiplos inteiros mantêm a pixel art nítida. */
 const TAMANHO_FONTE = 12;
@@ -58,6 +60,7 @@ export class Creditos extends Phaser.Scene {
 
     this.entrada = criarInput();
     this.silencio = criarControleSilencio(this);
+    tocarMusica(this, ANDAMENTO_BASE);
     this.inatividade = criarVigiaInatividade(this);
   }
 
