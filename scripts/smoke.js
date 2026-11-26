@@ -15,7 +15,9 @@
  * Shift+Backspace por 3 s na Tela inicial zerando os Recordes, e a Pausa: Esc antes do primeiro
  * input não dá a partida, Esc congela o cronômetro e o Fato, "Controles" em PT, perder o foco
  * e desconectar o controle abrem a Pausa, "Reiniciar a Fase" com o pulo segurado recomeça do
- * zero sem o Kiwi pular, e "Menu" sai para o Menu. Falha também se houver erro no console ou
+ * zero sem o Kiwi pular, e "Menu" sai para o Menu; e a Volta por inatividade, com os tempos
+ * encurtados: aviso e Volta no Menu (em EN, volta em PT), na Fase, na Pausa e no Placar, "---"
+ * nas Iniciais e nenhum aviso na Tela inicial. Falha também se houver erro no console ou
  * requisição fora da origem.
  *
  * Uso: `npm run smoke`. Sai com código 1 e a lista de problemas quando algo falha.
@@ -671,6 +673,123 @@ async function verificarRecorde(pagina) {
   return problemas;
 }
 
+/** Tempos curtos da Volta por inatividade, para o smoke não esperar 60 s. */
+const TEMPOS_INATIVIDADE = Object.freeze({ segundosVolta: 2.5, segundosAviso: 1.5 });
+/** Um pouco mais que a Volta encurtada, em ms. */
+const ESPERA_VOLTA_MS = TEMPOS_INATIVIDADE.segundosVolta * 1000 + ESPERA_MS;
+
+/**
+ * Para as cenas ativas e abre a cena dada, com os tempos curtos da Volta por inatividade.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ * @param {string} cena - A chave da cena.
+ * @param {object} [dados] - Os dados da cena.
+ * @returns {Promise<boolean>} Se a cena ficou ativa.
+ */
+async function abrirCena(pagina, cena, dados) {
+  await pagina.evaluate(({ chave, dadosCena, tempos }) => {
+    const { jogo } = window.kiwirun;
+    jogo.registry.set('temposInatividade', tempos);
+    for (const outra of jogo.scene.getScenes(true)) jogo.scene.stop(outra.scene.key);
+    jogo.scene.start(chave, dadosCena);
+  }, { chave: cena, dadosCena: dados, tempos: TEMPOS_INATIVIDADE });
+  return esperarCena(pagina, cena);
+}
+
+/**
+ * Espera o aviso "Ainda está aí?" aparecer na cena, no idioma dado.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ * @param {string} cena - A chave da cena.
+ * @param {import('../src/logica/textos.js').Textos} textos - Os Textos no idioma esperado.
+ * @returns {Promise<boolean>} Se o aviso apareceu antes da Volta.
+ */
+function esperarAviso(pagina, cena, textos) {
+  const prefixo = textos.t('inatividade.aviso').split('{')[0];
+  return pagina.waitForFunction(({ chave, inicio }) => window.kiwirun.jogo.scene.getScene(chave).children.list
+    .some((objeto) => objeto.type === 'BitmapText' && objeto.visible && objeto.text.startsWith(inicio)), { chave: cena, inicio: prefixo }, { timeout: ESPERA_VOLTA_MS })
+    .then(() => true, () => false);
+}
+
+/**
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ * @returns {Promise<boolean>} Se a Volta aconteceu: só a Tela inicial ativa, em PT, e nenhuma
+ *   cena pausada por baixo.
+ */
+async function voltou(pagina) {
+  const chegou = await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.isActive(cena), CENA_TELA_INICIAL, { timeout: ESPERA_VOLTA_MS })
+    .then(() => true, () => false);
+  if (!chegou) return false;
+  return pagina.evaluate(() => {
+    const { jogo } = window.kiwirun;
+    const rodando = jogo.scene.getScenes(false).filter((cena) => cena.sys.isActive() || cena.sys.isPaused()).map((cena) => cena.scene.key);
+    return jogo.registry.get('textos').idioma === 'pt' && rodando.length === 1;
+  });
+}
+
+/**
+ * A Volta por inatividade, com os tempos encurtados: no Menu em EN o aviso sai em inglês,
+ * qualquer input o cancela e a Volta restaura o PT; na Fase, na Pausa (a Fase por baixo
+ * para junto) e no Placar o aviso aparece e a Volta acontece; nas Iniciais a Volta grava
+ * "---"; na Tela inicial não há aviso. Termina na Tela inicial.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarVolta(pagina) {
+  const problemas = [];
+  const pt = criarTextos();
+  const en = criarTextos();
+  en.definirIdioma('en');
+
+  await pagina.evaluate(() => window.kiwirun.jogo.registry.get('textos').definirIdioma('en'));
+  await abrirCena(pagina, CENA_MENU);
+  if (!(await esperarAviso(pagina, CENA_MENU, en))) problemas.push('o aviso em EN não apareceu no Menu parado');
+  await pagina.keyboard.press('ArrowDown');
+  await pagina.waitForTimeout(ESPERA_MS / 4);
+  const avisoPt = pt.t('inatividade.aviso').split('{')[0];
+  const avisoEn = en.t('inatividade.aviso').split('{')[0];
+  if ((await textosDaCena(pagina, CENA_MENU)).some((texto) => texto.startsWith(avisoEn))) problemas.push('um input no Menu não cancelou o aviso');
+  if (!(await voltou(pagina))) problemas.push('a Volta pelo Menu em EN não abriu a Tela inicial em PT');
+
+  await abrirCena(pagina, CENA_FASE, { faseId: FASE_PECUARIA });
+  if (!(await esperarAviso(pagina, CENA_FASE, pt))) problemas.push('o aviso não apareceu na Fase parada');
+  if (!(await voltou(pagina))) problemas.push('a Volta pela Fase não abriu só a Tela inicial');
+
+  await abrirCena(pagina, CENA_FASE, { faseId: FASE_PECUARIA });
+  await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.getScene(cena)?.kiwi?.active === true, CENA_FASE, { timeout: LIMITE_MS });
+  await pagina.evaluate((cena) => window.kiwirun.jogo.scene.getScene(cena).abrirPausa(), CENA_FASE);
+  if (!(await esperarAviso(pagina, CENA_PAUSA, pt))) problemas.push('o aviso não apareceu na Pausa parada');
+  if (!(await voltou(pagina))) problemas.push('a Volta pela Pausa não abriu só a Tela inicial (a Fase ficou por baixo?)');
+
+  const tentativa = { faseId: FASE_PECUARIA, tempoGasto: 42, itens: [], capturas: [], fatosEncontrados: [], novoRecorde: false };
+  await abrirCena(pagina, CENA_PLACAR, tentativa);
+  if (!(await esperarAviso(pagina, CENA_PLACAR, pt))) problemas.push('o aviso não apareceu no Placar parado');
+  if (!(await voltou(pagina))) problemas.push('a Volta pelo Placar não abriu a Tela inicial');
+
+  await pagina.evaluate((faseId) => {
+    const recordes = window.kiwirun.jogo.registry.get('recordes');
+    recordes.zerar();
+    recordes.registrar(faseId, 42);
+  }, FASE_PECUARIA);
+  await abrirCena(pagina, CENA_INICIAIS, { ...tentativa, novoRecorde: true });
+  if (!(await voltou(pagina))) problemas.push('a Volta pelas Iniciais não abriu a Tela inicial');
+  const recorde = await lerRecorde(pagina);
+  if (recorde?.iniciais !== '---') problemas.push(`a Volta pelas Iniciais não gravou "---": ${JSON.stringify(recorde)}`);
+
+  await abrirCena(pagina, CENA_TELA_INICIAL);
+  const prazoSemAviso = Date.now() + ESPERA_VOLTA_MS;
+  while (Date.now() < prazoSemAviso) {
+    const textos = await textosDaCena(pagina, CENA_TELA_INICIAL);
+    if (textos.some((texto) => texto.startsWith(avisoPt))) {
+      problemas.push('a Tela inicial mostrou o aviso');
+      break;
+    }
+    await pagina.waitForTimeout(ESPERA_MS / 4);
+  }
+  return problemas;
+}
+
 /**
  * Abre o jogo e devolve o que deu errado.
  *
@@ -749,6 +868,7 @@ async function verificarJogo(url) {
     problemas.push(...await verificarPlacar(pagina));
     problemas.push(...await verificarRecorde(pagina));
     problemas.push(...await verificarReiniciar(pagina));
+    problemas.push(...await verificarVolta(pagina));
   } catch (erro) {
     problemas.push(`Pecuária não carregou pelo Menu: ${erro.message}`);
   } finally {
@@ -765,4 +885,4 @@ if (problemas.length > 0) {
   console.error(`Smoke falhou:\n- ${problemas.join('\n- ')}`);
   process.exit(1);
 }
-console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Iniciais, Placar, Recorde (recarregar e zerar), Pausa e bloqueio de entrada funcionando, sem erro no console nem requisição fora da origem.');
+console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Iniciais, Placar, Recorde (recarregar e zerar), Pausa, bloqueio de entrada e Volta por inatividade funcionando, sem erro no console nem requisição fora da origem.');
