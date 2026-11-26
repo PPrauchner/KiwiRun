@@ -3,7 +3,8 @@
  * letras, com a letra sob o cursor destacada e sublinhada. Cima/baixo trocam a letra,
  * esquerda/direita movem o cursor, confirmar aceita a letra e, na terceira, grava as
  * Iniciais no Recorde e abre o Placar; Esc volta uma letra. No teclado, digitar A–Z
- * preenche a posição e avança, e as letras não movem nem silenciam. Não dá para pular.
+ * preenche a posição e avança, e as letras não movem nem silenciam: aqui só o Select do
+ * controle alterna o Silêncio. Não dá para pular.
  */
 import { FONTE } from './preload.js';
 import { criarDigitacao, criarIniciais, QUANTIDADE_INICIAIS, separarDigitacao } from '../logica/iniciais.js';
@@ -12,6 +13,7 @@ import { calcularPlacarDaTentativa } from '../logica/placar.js';
 import { arredondarDecimos, INICIAIS_DA_VOLTA } from '../logica/recorde.js';
 import { lerEntrada } from './entrada.js';
 import { criarVigiaInatividade } from './inatividade.js';
+import { criarControleSilencio } from './silencio.js';
 
 /** Tamanho nativo da fonte bitmap; múltiplos inteiros mantêm a pixel art nítida. */
 const TAMANHO_FONTE = 12;
@@ -63,6 +65,7 @@ export class Iniciais extends Phaser.Scene {
     this.digitacao = criarDigitacao();
     // As letras digitadas não passam pelo Input: contam à parte como input.
     this.segundosSemLetra = 0;
+    this.silencio = criarControleSilencio(this);
     this.inatividade = criarVigiaInatividade(this, {
       aoVoltar: () => this.registry.get('recordes').gravarIniciais(this.dados.faseId, INICIAIS_DA_VOLTA),
     });
@@ -89,6 +92,7 @@ export class Iniciais extends Phaser.Scene {
     const digitadas = this.digitacao.atualizar(letras, dt);
     this.segundosSemLetra = digitadas.length > 0 ? 0 : this.segundosSemLetra + dt;
     if (this.inatividade.atualizar(Math.min(this.entrada.segundosSemInput, this.segundosSemLetra))) return;
+    this.silencio.atualizar(acoes);
     const gravadas = this.iniciais.atualizar(acoes, digitadas);
     if (gravadas) {
       this.registry.get('recordes').gravarIniciais(this.dados.faseId, gravadas);

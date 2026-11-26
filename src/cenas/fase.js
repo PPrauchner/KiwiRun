@@ -15,6 +15,8 @@
  * Ovelhas andam de uma ponta à outra do trajeto como plataformas sólidas só por cima: levam
  * o Kiwi montado, não o ferem e, se ele ficar prensado em cima de uma, o devolvem ao Checkpoint.
  * Cada Placa mostra, fixa sobre o seu poste, os ícones dos botões e uma frase no idioma atual.
+ * Pular, coletar um Item, capturar e pegar uma Samambaia-prateada tocam cada um o seu efeito
+ * sonoro; M ou Select alternam o Silêncio sem dar a partida na Fase congelada.
  *
  * Start ou Esc, a janela perder o foco (Alt+Tab, notificação) ou um controle desconectar
  * abrem a Pausa por cima e pausam esta cena: o jogo, o cronômetro e a Fila de Fatos param
@@ -24,6 +26,7 @@ import { buscarFase, chaveNomePredador, imagemItem } from '../logica/catalogo.js
 import { resolverContato, SEGUNDOS_INVULNERAVEL, SEGUNDOS_ROTULO_CAPTURA } from '../logica/captura.js';
 import { criarControlePulo } from '../logica/controle-pulo.js';
 import { criarCronometro } from '../logica/cronometro.js';
+import { chaveEfeito } from '../logica/efeitos.js';
 import { criarFilaDeFatos, LARGURA_FATO } from '../logica/fila-fatos.js';
 import { criarInput } from '../logica/input.js';
 import { calcularPlacarDaTentativa } from '../logica/placar.js';
@@ -33,6 +36,7 @@ import { acaoDaPlaca, BOTOES, BOTOES_DA_ACAO } from '../logica/placa.js';
 import { FONTE, TEXTURA_BOTOES, TEXTURA_KIWI, TEXTURA_OVELHA, TEXTURA_QUADROS_TILESET, TEXTURA_SAMAMBAIA, TEXTURA_TILESET, texturaPredador } from './preload.js';
 import { lerEntrada } from './entrada.js';
 import { criarVigiaInatividade } from './inatividade.js';
+import { criarControleSilencio } from './silencio.js';
 
 /** Tamanho da hitbox do Kiwi, menor que o sprite de 18×18, e seu deslocamento nele. */
 const HITBOX = Object.freeze({ largura: 10, altura: 11, x: 4, y: 7 });
@@ -190,6 +194,7 @@ export class Fase extends Phaser.Scene {
     this.cronometro = criarCronometro();
     this.physics.pause();
     this.criarHud();
+    this.silencio = criarControleSilencio(this);
     this.inatividade = criarVigiaInatividade(this);
   }
 
@@ -200,6 +205,7 @@ export class Fase extends Phaser.Scene {
   update(_tempo, delta) {
     this.acoes = this.entrada.atualizar(lerEntrada(this), delta / 1000);
     if (this.inatividade.atualizar(this.entrada.segundosSemInput)) return;
+    this.silencio.atualizar(this.acoes);
     if (this.acoes.pausar) {
       this.abrirPausa();
       return;
@@ -264,6 +270,7 @@ export class Fase extends Phaser.Scene {
   coletar(item) {
     const tipo = item.getData('item');
     item.destroy();
+    this.sound.play(chaveEfeito('coletar'));
     this.coletados += 1;
     this.coletadosPorItem[tipo] = (this.coletadosPorItem[tipo] ?? 0) + 1;
     this.atualizarHudItens();
@@ -281,6 +288,7 @@ export class Fase extends Phaser.Scene {
   pegarSamambaia(samambaia) {
     const chave = samambaia.getData('chaveFato');
     samambaia.destroy();
+    this.sound.play(chaveEfeito('samambaia'));
     this.fatosEncontrados.push(chave);
     this.filaFatos.enfileirar(chave);
     this.atualizarHudSamambaias();
@@ -375,6 +383,7 @@ export class Fase extends Phaser.Scene {
     this.capturas += 1;
     this.capturasPorEspecie[especie] = (this.capturasPorEspecie[especie] ?? 0) + 1;
     this.kiwi.body.setVelocityY(this.controlePulo.quicar());
+    this.sound.play(chaveEfeito('capturar'));
 
     const duracao = SEGUNDOS_ROTULO_CAPTURA * 1000;
     const armadilha = this.add.rectangle(x, y - TILE, TILE, TILE, COR_ARMADILHA).setStrokeStyle(1, COR_BORDA_ARMADILHA);
@@ -513,6 +522,7 @@ export class Fase extends Phaser.Scene {
       vy: body.velocity.y,
     }));
     this.apertouPular = false;
+    if (this.controlePulo.pulou) this.sound.play(chaveEfeito('pular'));
 
     if (direcao !== 0) {
       this.kiwi.setFlipX(direcao < 0);

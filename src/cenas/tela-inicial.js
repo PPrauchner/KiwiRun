@@ -11,6 +11,7 @@ import { VERSAO } from '../logica/versao.js';
 import { criarInput } from '../logica/input.js';
 import { lerEntrada } from './entrada.js';
 import { criarVigiaInatividade } from './inatividade.js';
+import { criarControleSilencio } from './silencio.js';
 import { criarSeletorIdioma } from '../logica/seletor-idioma.js';
 import { criarAtalhoZerar } from '../logica/recorde.js';
 
@@ -55,6 +56,7 @@ export class TelaInicial extends Phaser.Scene {
       .setTint(COR_CONFIRMACAO)
       .setVisible(false);
     // Sem aviso aqui; a Volta reabre a Tela inicial em PT.
+    this.silencio = criarControleSilencio(this);
     this.inatividade = criarVigiaInatividade(this, { comAviso: false });
   }
 
@@ -106,6 +108,7 @@ export class TelaInicial extends Phaser.Scene {
     if (this.atalhoZerar.atualizar(estado.teclas, delta / 1000)) this.zerarRecordes();
     const acoes = this.entrada.atualizar(estado, delta / 1000);
     if (this.inatividade.atualizar(this.entrada.segundosSemInput)) return;
+    this.silencio.atualizar(acoes);
     if (acoes.confirmar) {
       this.scene.start('menu');
     } else if (this.seletor.atualizar(acoes)) {

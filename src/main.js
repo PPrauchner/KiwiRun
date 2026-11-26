@@ -6,6 +6,7 @@
 import { criarTextos } from './logica/textos.js';
 import { criarTeclado, registraTecla } from './logica/input.js';
 import { criarRecordes } from './logica/recorde.js';
+import { criarSilencio } from './logica/silencio.js';
 import { Preload } from './cenas/preload.js';
 import { TelaInicial } from './cenas/tela-inicial.js';
 import { Menu } from './cenas/menu.js';
@@ -61,6 +62,7 @@ const jogo = new Phaser.Game({
       instancia.registry.set('textos', criarTextos());
       instancia.registry.set('teclado', teclado);
       instancia.registry.set('recordes', criarRecordes(armazenamentoDoNavegador()));
+      instancia.registry.set('silencio', criarSilencio(armazenamentoDoNavegador()));
     },
   },
   // A Pausa vem depois da Fase para ser desenhada por cima dela.

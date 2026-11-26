@@ -11,6 +11,7 @@ import { criarInput } from '../logica/input.js';
 import { chaveOpcaoPausa, criarMenuPausa, LINHAS_CONTROLES } from '../logica/menu-pausa.js';
 import { lerEntrada } from './entrada.js';
 import { criarVigiaInatividade } from './inatividade.js';
+import { criarControleSilencio } from './silencio.js';
 
 /** Tamanho nativo da fonte bitmap; múltiplos inteiros mantêm a pixel art nítida. */
 const TAMANHO_FONTE = 12;
@@ -50,6 +51,7 @@ export class Pausa extends Phaser.Scene {
     this.controles = this.criarControles();
     // Sem o bloqueio de ~0,5 s: Start/Esc fecham logo; só o que veio segurado fica travado.
     this.entrada = criarInput({ segundosBloqueio: 0 });
+    this.silencio = criarControleSilencio(this);
     this.inatividade = criarVigiaInatividade(this);
     this.redesenhar();
   }
@@ -98,6 +100,7 @@ export class Pausa extends Phaser.Scene {
   update(_tempo, delta) {
     const acoes = this.entrada.atualizar(lerEntrada(this), delta / 1000);
     if (this.inatividade.atualizar(this.entrada.segundosSemInput)) return;
+    this.silencio.atualizar(acoes);
     const destino = this.menu.atualizar(acoes);
     if (destino === 'continuar') {
       this.scene.resume('fase');
