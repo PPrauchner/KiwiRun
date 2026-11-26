@@ -6,6 +6,8 @@ export default {
   'tela_inicial.saudacao': 'Kia ora!',
   'tela_inicial.versao': 'v{versao}',
   'tela_inicial.recordes_zerados': 'Recordes zerados',
+  'tela_inicial.toque': 'Jogue no computador',
+  'tela_inicial.link': 'https://pprauchner.github.io/KiwiRun/',
   'idioma.sigla': 'PT',
   'menu.titulo': 'Aotearoa',
   'menu.em_breve': 'em breve',
