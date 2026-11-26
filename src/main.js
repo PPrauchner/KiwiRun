@@ -9,6 +9,7 @@ import { Preload } from './cenas/preload.js';
 import { TelaInicial } from './cenas/tela-inicial.js';
 import { Menu } from './cenas/menu.js';
 import { Fase } from './cenas/fase.js';
+import { Placar } from './cenas/placar.js';
 import { FISICA } from './logica/pulo.js';
 
 /** Resolução interna; o Phaser escala para caber na janela, com barras fora de 16:9. */
@@ -47,7 +48,7 @@ const jogo = new Phaser.Game({
       instancia.registry.set('teclado', teclado);
     },
   },
-  scene: [Preload, TelaInicial, Menu, Fase],
+  scene: [Preload, TelaInicial, Menu, Fase, Placar],
 });
 
 // Exposto para o smoke (Playwright) inspecionar a cena ativa.

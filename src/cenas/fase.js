@@ -4,7 +4,8 @@
  * O Kiwi anda e pula (física Arcade em passo fixo de 60/s); a borda inferior do mapa é
  * Zona de queda e devolve o Kiwi ao último Checkpoint por que passou (o início é o
  * primeiro), mantendo os Itens, as Samambaias-prateadas e os Fatos já encontrados; tocar o
- * fim vence a Fase e, até o Placar existir, volta ao Menu. Até o primeiro mover ou pular, a Fase
+ * fim vence a Fase e abre o Placar, com os Itens por tipo e as Capturas por espécie. Até o
+ * primeiro mover ou pular, a Fase
  * e o cronômetro ficam parados. O HUD mostra o Tempo gasto, os Itens em "X/Y" e as
  * Samambaias-prateadas em "X/3"; pegar uma põe o seu Fato na Fila de Fatos, mostrada no topo
  * da tela sem pausar o jogo. Os Predadores patrulham entre as pontas da sua área no mapa:
@@ -72,6 +73,18 @@ function ehUmaMao(tile) {
 }
 
 /**
+ * Conta os objetos do mapa por tipo, na ordem em que cada tipo aparece primeiro.
+ *
+ * @param {Phaser.Types.Tilemaps.TiledObject[]} objetos - Objetos do mapa.
+ * @returns {Record<string, number>} Quantos objetos de cada tipo.
+ */
+function contarPorTipo(objetos) {
+  const contagem = {};
+  for (const { type } of objetos) contagem[type] = (contagem[type] ?? 0) + 1;
+  return contagem;
+}
+
+/**
  * @param {string} item - Id do Item no catálogo.
  * @returns {string} A chave da textura do Item.
  */
@@ -90,10 +103,14 @@ export class Fase extends Phaser.Scene {
     this.chaveMapa = `mapa-${this.fase.id}`;
     this.venceu = false;
     this.coletados = 0;
+    /** @type {Record<string, number>} Itens coletados, por id do Item. */
+    this.coletadosPorItem = {};
     /** @type {string[]} Chaves dos Fatos já encontrados, na ordem em que foram pegos. */
     this.fatosEncontrados = [];
     this.filaFatos = criarFilaDeFatos();
     this.capturas = 0;
+    /** @type {Record<string, number>} Capturas, por espécie. */
+    this.capturasPorEspecie = {};
     /** Segundos de invulnerabilidade que restam depois de voltar ao Checkpoint. */
     this.invulneravel = 0;
   }
@@ -181,15 +198,18 @@ export class Fase extends Phaser.Scene {
   /** @param {Phaser.Types.Tilemaps.TiledObject[]} itens - Os pontos `item` do mapa. */
   criarItens(itens) {
     this.totalItens = itens.length;
+    this.totalPorItem = contarPorTipo(itens);
     const grupo = this.physics.add.staticGroup();
-    for (const { x, y, type } of itens) grupo.create(x, y, texturaItem(type));
+    for (const { x, y, type } of itens) grupo.create(x, y, texturaItem(type)).setData('item', type);
     this.physics.add.overlap(this.kiwi, grupo, (_kiwi, item) => this.coletar(item));
   }
 
   /** @param {Phaser.Physics.Arcade.Sprite} item - O Item que o Kiwi tocou. */
   coletar(item) {
+    const tipo = item.getData('item');
     item.destroy();
     this.coletados += 1;
+    this.coletadosPorItem[tipo] = (this.coletadosPorItem[tipo] ?? 0) + 1;
     this.atualizarHudItens();
   }
 
@@ -217,6 +237,7 @@ export class Fase extends Phaser.Scene {
    * @param {Phaser.Types.Tilemaps.TiledObject[]} areas - As áreas `predador` do mapa.
    */
   criarPredadores(areas) {
+    this.totalPorEspecie = contarPorTipo(areas);
     this.predadores = this.physics.add.group({ allowGravity: false, immovable: true });
     for (const { x, y, width: largura, height: altura, type: especie } of areas) {
       const predador = this.predadores.create(x + TILE / 2, y + altura - TILE / 2, texturaPredador(especie));
@@ -262,6 +283,7 @@ export class Fase extends Phaser.Scene {
     const especie = predador.getData('especie');
     predador.disableBody(true, false);
     this.capturas += 1;
+    this.capturasPorEspecie[especie] = (this.capturasPorEspecie[especie] ?? 0) + 1;
     this.kiwi.body.setVelocityY(this.controlePulo.quicar());
 
     const duracao = SEGUNDOS_ROTULO_CAPTURA * 1000;
@@ -413,6 +435,17 @@ export class Fase extends Phaser.Scene {
     if (this.venceu) return;
     this.venceu = true;
     this.cronometro.parar();
-    this.scene.start('menu');
+    this.scene.start('placar', this.resultado());
+  }
+
+  /** @returns {import('./placar.js').DadosPlacar} O que a tentativa fez, para o Placar. */
+  resultado() {
+    return {
+      faseId: this.fase.id,
+      tempoGasto: this.cronometro.segundos,
+      itens: Object.entries(this.totalPorItem).map(([item, total]) => ({ item, coletados: this.coletadosPorItem[item] ?? 0, total })),
+      capturas: Object.keys(this.totalPorEspecie).map((especie) => ({ especie, quantidade: this.capturasPorEspecie[especie] ?? 0 })),
+      fatosEncontrados: [...this.fatosEncontrados],
+    };
   }
 }
