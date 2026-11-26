@@ -1,3 +1,5 @@
 # O cmd.exe exige CRLF nos .bat; os .ps1 tambem ficam em CRLF no Windows.
 *.bat text eol=crlf
 *.ps1 text eol=crlf
+# A música é PCM de 8 bits sem byte nulo: sem isto o Git a trataria como texto.
+*.wav binary
