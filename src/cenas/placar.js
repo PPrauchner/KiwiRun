@@ -3,7 +3,8 @@
  * descontos e o Tempo final; à direita os Itens por tipo ("Lã 5/8") e as Capturas por
  * espécie ("Arminho ×2"); abaixo os Fatos encontrados, "???" para os que faltaram com um
  * convite a achar a Samambaia-prateada, e as opções "Próxima Fase" (só com uma
- * disponível), "Jogar de novo" (pré-selecionada) e "Menu". Esc vai ao Menu.
+ * disponível), "Jogar de novo" (pré-selecionada) e "Menu". Esc vai ao Menu. Num Novo
+ * Recorde, "Novo Recorde!" aparece no alto, à direita do título.
  *
  * "Jogar de novo" e "Próxima Fase" reabrem a cena Fase do zero; o Input da Fase trava o
  * pulo que vinha segurado do Placar.
@@ -13,17 +14,12 @@ import { buscarFase, chaveNomeItem, chaveNomePredador, proximaFase } from '../lo
 import { LARGURA_FATO } from '../logica/fila-fatos.js';
 import { criarInput } from '../logica/input.js';
 import { chaveOpcaoPlacar, criarMenuPlacar } from '../logica/menu-placar.js';
-import { calcularPlacar } from '../logica/placar.js';
+import { calcularPlacarDaTentativa } from '../logica/placar.js';
+import { arredondarDecimos } from '../logica/recorde.js';
 import { lerEntrada } from './entrada.js';
 
 /**
- * @typedef {Object} DadosPlacar
- * @property {string} faseId - A Fase terminada.
- * @property {number} tempoGasto - O Tempo gasto, em segundos.
- * @property {{ item: string, coletados: number, total: number }[]} itens - Itens por tipo.
- * @property {{ especie: string, quantidade: number }[]} capturas - Capturas por espécie
- *   presente na Fase.
- * @property {string[]} fatosEncontrados - Chaves dos Fatos encontrados.
+ * @typedef {import('../logica/placar.js').Tentativa & { novoRecorde: boolean }} DadosPlacar
  */
 
 /** Tamanho nativo da fonte bitmap; múltiplos inteiros mantêm a pixel art nítida. */
@@ -56,17 +52,15 @@ export class Placar extends Phaser.Scene {
 
   create() {
     this.textos = this.registry.get('textos');
-    const { faseId, tempoGasto, itens, capturas, fatosEncontrados } = this.dados;
+    const { faseId, itens, capturas, fatosEncontrados, novoRecorde } = this.dados;
     const fase = buscarFase(faseId);
-    this.placar = calcularPlacar({
-      tempoGasto,
-      itens: itens.reduce((soma, { coletados }) => soma + coletados, 0),
-      capturas: capturas.reduce((soma, { quantidade }) => soma + quantidade, 0),
-      samambaias: fatosEncontrados.length,
-    });
+    this.placar = calcularPlacarDaTentativa(this.dados);
 
     const { width: largura } = this.scale;
     this.texto(largura / 2, TOPO_TITULO, this.textos.t('placar.titulo'), TAMANHO_FONTE * 2).setOrigin(0.5);
+    if (novoRecorde) {
+      this.texto(largura - X_ESQUERDA, TOPO_TITULO, this.textos.t('placar.novo_recorde')).setOrigin(1, 0.5).setTint(COR_CURSOR);
+    }
     this.criarResumo();
     this.criarContagens(itens, capturas);
     this.criarFatos(fase.chavesFato, fatosEncontrados);
@@ -104,7 +98,8 @@ export class Placar extends Phaser.Scene {
       ['placar.desconto_itens', `-${this.tempo(placar.descontoItens)}`],
       ['placar.desconto_capturas', `-${this.tempo(placar.descontoCapturas)}`],
       ['placar.desconto_samambaias', `-${this.tempo(placar.descontoSamambaias)}`],
-      ['placar.tempo_final', this.tempo(placar.tempoFinal)],
+      // Em décimos arredondados, como o Recorde o grava.
+      ['placar.tempo_final', this.tempo(arredondarDecimos(placar.tempoFinal))],
     ];
     linhas.forEach(([chave, valor], indice) => {
       const y = TOPO_RESUMO + indice * ALTURA_LINHA;

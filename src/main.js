@@ -4,12 +4,14 @@
  * O Phaser vem vendorizado como script global (`vendor/phaser/`), sem etapa de build.
  */
 import { criarTextos } from './logica/textos.js';
-import { criarTeclado, TECLAS } from './logica/input.js';
+import { criarTeclado, registraTecla } from './logica/input.js';
+import { criarRecordes } from './logica/recorde.js';
 import { Preload } from './cenas/preload.js';
 import { TelaInicial } from './cenas/tela-inicial.js';
 import { Menu } from './cenas/menu.js';
 import { Fase } from './cenas/fase.js';
 import { Placar } from './cenas/placar.js';
+import { Iniciais } from './cenas/iniciais.js';
 import { FISICA } from './logica/pulo.js';
 
 /** Resolução interna; o Phaser escala para caber na janela, com barras fora de 16:9. */
@@ -20,12 +22,23 @@ const ALTURA = 360;
 // continuar segurada e o Input da tela nova travá-la. As teclas do jogo não rolam a página.
 const teclado = criarTeclado();
 window.addEventListener('keydown', (evento) => {
-  if (!Object.hasOwn(TECLAS, evento.code)) return;
+  if (!registraTecla(evento.code)) return;
   evento.preventDefault();
   if (!evento.repeat) teclado.apertar(evento.code);
 });
 window.addEventListener('keyup', (evento) => teclado.soltar(evento.code));
 window.addEventListener('blur', () => teclado.soltarTudo());
+
+/**
+ * @returns {Storage | null} O `localStorage`, ou `null` se o navegador o recusar.
+ */
+function armazenamentoDoNavegador() {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
 
 const jogo = new Phaser.Game({
   type: Phaser.AUTO,
@@ -46,9 +59,10 @@ const jogo = new Phaser.Game({
     preBoot: (instancia) => {
       instancia.registry.set('textos', criarTextos());
       instancia.registry.set('teclado', teclado);
+      instancia.registry.set('recordes', criarRecordes(armazenamentoDoNavegador()));
     },
   },
-  scene: [Preload, TelaInicial, Menu, Fase, Placar],
+  scene: [Preload, TelaInicial, Menu, Fase, Iniciais, Placar],
 });
 
 // Exposto para o smoke (Playwright) inspecionar a cena ativa.

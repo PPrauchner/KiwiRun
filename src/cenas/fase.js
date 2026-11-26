@@ -19,6 +19,7 @@ import { criarControlePulo } from '../logica/controle-pulo.js';
 import { criarCronometro } from '../logica/cronometro.js';
 import { criarFilaDeFatos, LARGURA_FATO } from '../logica/fila-fatos.js';
 import { criarInput } from '../logica/input.js';
+import { calcularPlacarDaTentativa } from '../logica/placar.js';
 import { FISICA, TILE } from '../logica/pulo.js';
 import { FONTE, TEXTURA_KIWI, TEXTURA_QUADROS_TILESET, TEXTURA_SAMAMBAIA, TEXTURA_TILESET, texturaPredador } from './preload.js';
 import { lerEntrada } from './entrada.js';
@@ -431,14 +432,18 @@ export class Fase extends Phaser.Scene {
     this.kiwi.setAlpha(apagado ? OPACIDADE_PISCANDO : 1);
   }
 
+  /** Grava o Recorde assim que a Fase termina; um Novo Recorde passa pelas Iniciais. */
   vencer() {
     if (this.venceu) return;
     this.venceu = true;
     this.cronometro.parar();
-    this.scene.start('placar', this.resultado());
+    const resultado = this.resultado();
+    const { tempoFinal } = calcularPlacarDaTentativa(resultado);
+    const novoRecorde = this.registry.get('recordes').registrar(resultado.faseId, tempoFinal);
+    this.scene.start(novoRecorde ? 'iniciais' : 'placar', { ...resultado, novoRecorde });
   }
 
-  /** @returns {import('./placar.js').DadosPlacar} O que a tentativa fez, para o Placar. */
+  /** @returns {import('../logica/placar.js').Tentativa} O que a tentativa fez, para o Placar. */
   resultado() {
     return {
       faseId: this.fase.id,

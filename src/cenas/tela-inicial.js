@@ -2,12 +2,16 @@
  * @file Tela inicial: "Kia ora!", o convite a apertar um botão, o seletor PT | EN e a versão
  * num canto. Esquerda/direita (setas, D-pad, analógico) alternam o idioma sem sair da tela;
  * confirmar (botão frontal, Start, Enter ou Espaço) abre o Menu.
+ *
+ * Só no teclado, o Apresentador zera os Recordes segurando Shift+Backspace por 3 s; uma
+ * mensagem confirma.
  */
 import { FONTE } from './preload.js';
 import { VERSAO } from '../logica/versao.js';
 import { criarInput } from '../logica/input.js';
 import { lerEntrada } from './entrada.js';
 import { criarSeletorIdioma } from '../logica/seletor-idioma.js';
+import { criarAtalhoZerar } from '../logica/recorde.js';
 
 /** Tamanho nativo da fonte bitmap; múltiplos inteiros mantêm a pixel art nítida. */
 const TAMANHO_FONTE = 12;
@@ -16,6 +20,9 @@ const COR_DISCRETA = 0x8899aa;
 const COR_IDIOMA_ATUAL = 0xffd166;
 /** Espaço entre as siglas do seletor e a barra que as separa. */
 const ESPACO_SELETOR = 8;
+const COR_CONFIRMACAO = 0x9be29b;
+/** Por quanto tempo a confirmação de Recordes zerados fica na tela, em ms. */
+const DURACAO_CONFIRMACAO_MS = 3000;
 
 export class TelaInicial extends Phaser.Scene {
   constructor() {
@@ -41,6 +48,19 @@ export class TelaInicial extends Phaser.Scene {
     this.seletor = criarSeletorIdioma(textos);
     this.criarSeletor(largura / 2, altura * 0.84);
     this.entrada = criarInput();
+    this.atalhoZerar = criarAtalhoZerar();
+    this.confirmacao = this.add.bitmapText(largura / 2, altura * 0.16, FONTE, textos.t('tela_inicial.recordes_zerados'), TAMANHO_FONTE)
+      .setOrigin(0.5)
+      .setTint(COR_CONFIRMACAO)
+      .setVisible(false);
+  }
+
+  /** Zera os Recordes e mostra a confirmação por alguns segundos. */
+  zerarRecordes() {
+    this.registry.get('recordes').zerar();
+    this.confirmacao.setVisible(true);
+    this.time.removeAllEvents();
+    this.time.delayedCall(DURACAO_CONFIRMACAO_MS, () => this.confirmacao.setVisible(false));
   }
 
   /**
@@ -79,11 +99,14 @@ export class TelaInicial extends Phaser.Scene {
    * @param {number} delta - Milissegundos desde o quadro anterior.
    */
   update(_tempo, delta) {
-    const acoes = this.entrada.atualizar(lerEntrada(this), delta / 1000);
+    const estado = lerEntrada(this);
+    if (this.atalhoZerar.atualizar(estado.teclas, delta / 1000)) this.zerarRecordes();
+    const acoes = this.entrada.atualizar(estado, delta / 1000);
     if (acoes.confirmar) {
       this.scene.start('menu');
     } else if (this.seletor.atualizar(acoes)) {
       this.aperte.setText(this.textos.t('tela_inicial.aperte'));
+      this.confirmacao.setText(this.textos.t('tela_inicial.recordes_zerados'));
       this.pintarSeletor();
     }
   }
