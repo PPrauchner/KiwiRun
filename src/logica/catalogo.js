@@ -70,7 +70,19 @@ export const MUNDOS = Object.freeze([
         // Mais rápido que o andamento base das telas: a Fase pede pressa.
         andamento: 140,
       },
-      faseEmBreve('porto'),
+      {
+        id: 'porto',
+        chaveNome: 'fase.porto',
+        emBreve: false,
+        mapa: 'assets/mapas/porto.tmj',
+        itens: ['kiwifruta', 'caixa'],
+        chavesFato: ['fato.porto.1', 'fato.porto.2', 'fato.porto.3'],
+        // Provisório até o playtest, pelo comprimento do percurso, como na Pecuária: 98 tiles
+        // andando dão ~13 s; com pulos, guindastes, esteiras e Capturas, ~30 s.
+        tempoReferencia: 30,
+        // O andamento da Pecuária: o Porto também pede pressa.
+        andamento: 140,
+      },
       faseEmBreve('foguete'),
     ],
   },
@@ -84,6 +96,33 @@ export const MUNDOS = Object.freeze([
  * @type {readonly string[]}
  */
 export const PREDADORES = Object.freeze(['arminho', 'gamba', 'rato']);
+
+/**
+ * @typedef {Object} Pulinho
+ * @property {number} alcance - Distância horizontal até o Kiwi, em pixels, que dispara o pulinho.
+ * @property {number} altura - Quanto o Predador sobe, em pixels.
+ * @property {number} segundos - Duração do pulinho, da subida ao pouso.
+ */
+
+/**
+ * @typedef {Object} ComportamentoPredador
+ * @property {number} velocidade - Velocidade da patrulha, em pixels por segundo.
+ * @property {number} [patrulhaMaxima] - Colunas máximas da patrulha no mapa.
+ * @property {Pulinho} [pulinho] - O pulinho quando o Kiwi chega perto.
+ * @property {true} [plataformaAlta] - Se a patrulha fica sobre uma plataforma alta do mapa.
+ */
+
+/**
+ * Comportamento de cada espécie: o rato patrulha rápido e curto, o arminho dá um pulinho
+ * quando o Kiwi chega perto e o gambá-australiano anda devagar, em plataformas altas.
+ *
+ * @type {Readonly<Record<string, ComportamentoPredador>>}
+ */
+export const COMPORTAMENTO_PREDADOR = Object.freeze({
+  arminho: Object.freeze({ velocidade: 30, pulinho: Object.freeze({ alcance: 54, altura: 10, segundos: 0.4 }) }),
+  gamba: Object.freeze({ velocidade: 15, plataformaAlta: true }),
+  rato: Object.freeze({ velocidade: 50, patrulhaMaxima: 4 }),
+});
 
 /**
  * @param {string} especie - Espécie de Predador do catálogo.

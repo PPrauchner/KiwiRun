@@ -29,6 +29,8 @@ export default {
   'predador.rato': 'Rat',
   'item.la': 'Wool',
   'item.leite': 'Milk',
+  'item.kiwifruta': 'Kiwifruit',
+  'item.caixa': 'Export crate',
   'numero.separador_decimal': '.',
   'placar.titulo': 'Results',
   'placar.novo_recorde': 'New record!',
@@ -85,4 +87,7 @@ export default {
   'fato.pecuaria.1': 'Halter uses solar GPS collars that guide cattle with sound and vibration, no fences.',
   'fato.pecuaria.2': 'Halter has sold over 1 million collars to more than 2,000 farms.',
   'fato.pecuaria.3': 'In 2026, AgTech startup Halter was valued at 2 billion US dollars.',
+  'fato.porto.1': 'In 2025-26, NZ food and fibre exports are set to hit a record 64.3 billion NZ dollars.',
+  'fato.porto.2': 'Dairy brings in about 45 per cent of New Zealand food and fibre exports.',
+  'fato.porto.3': 'NZ exported record volumes of kiwifruit and apples in 2025-26.',
 };

@@ -7,12 +7,12 @@
  * "Voltar" de volta ao Menu), escolhe a Pecuária, espera ela
  * carregada e confere o HUD,
  * a Fase parada até o primeiro input, a coleta de um Item, as Samambaias-prateadas e a
- * Fila de Fatos, a volta ao Checkpoint, e os Predadores: Captura, contato lateral e a
+ * Fila de Fatos, a volta ao Checkpoint, e os Predadores: Captura, o pulinho do arminho, contato lateral e a
  * invulnerabilidade depois de voltar, as Placas no idioma atual e as Ovelhas (paradas até o
  * primeiro input, atravessadas de lado, levando o Kiwi montado e devolvendo-o ao Checkpoint
  * quando ele fica prensado), as Iniciais do primeiro Recorde (o pulo segurado não
  * confirma, digitar letras sem mover o cursor, Esc volta uma letra), o Placar com "Novo
- * Recorde" (Tempo final, Itens por tipo, Capturas por espécie, Fatos e "???", sem "Próxima
+ * Recorde" (Tempo final, Itens por tipo, Capturas por espécie, Fatos e "???", com "Próxima
  * Fase"), o bloqueio de entrada (o pulo segurado ao tocar o fim não escolhe nada no Placar,
  * e o pulo segurado ao entrar por "Jogar de novo" não faz o Kiwi pular), a Fase recomeçada
  * do zero, Esc do Placar ao Menu, o Recorde no Menu antes e depois de recarregar a página, e
@@ -27,7 +27,10 @@
  * reiniciar entre Tela inicial, Menu, Créditos e Placar, trocando de andamento na Pecuária e
  * cortada pelo Silêncio; e o aviso de toque:
  * ausente no desktop, presente com toque emulado (com o link do Pages, sem Wake Lock no
- * navegador, e qualquer tecla abrindo o Menu), com a Wake Lock pedida ao abrir. Falha também se houver erro no console ou
+ * navegador, e qualquer tecla abrindo o Menu), com a Wake Lock pedida ao abrir; e o Porto, escolhido
+ * no Menu: guindastes e esteiras parados até o primeiro input, as esteiras empurrando o Kiwi no
+ * sentido marcado, o guindaste levando-o montado e devolvendo-o ao Checkpoint quando ele fica
+ * prensado, e o fim abrindo o Placar. Falha também se houver erro no console ou
  * requisição fora da origem.
  *
  * Uso: `npm run smoke`. Sai com código 1 e a lista de problemas quando algo falha.
@@ -38,7 +41,7 @@ import { iniciarServidor } from './servidor.js';
 import { criarTextos } from '../src/logica/textos.js';
 import { VERSAO } from '../src/logica/versao.js';
 import { DURACAO_FATO } from '../src/logica/fila-fatos.js';
-import { buscarFase, chaveNomeItem, chaveNomePredador, MUNDOS } from '../src/logica/catalogo.js';
+import { buscarFase, chaveNomeItem, chaveNomePredador, COMPORTAMENTO_PREDADOR, MUNDOS } from '../src/logica/catalogo.js';
 import { SEGUNDOS_INVULNERAVEL } from '../src/logica/captura.js';
 import { SEGUNDOS_PRESO } from '../src/logica/ovelha.js';
 import { SEGUNDOS_BLOQUEIO } from '../src/logica/input.js';
@@ -58,10 +61,17 @@ const CENA_INICIAIS = 'iniciais';
 const CENA_PAUSA = 'pausa';
 const FASE_PECUARIA = 'pecuaria';
 const MAPA_PECUARIA = new URL('../assets/mapas/pecuaria.tmj', import.meta.url);
+const FASE_PORTO = 'porto';
+const MAPA_PORTO = new URL('../assets/mapas/porto.tmj', import.meta.url);
 /** Quanto esperar para ver se algo se mexe (ou não), em ms. */
 const ESPERA_MS = 400;
 /** Quanto esperar o bloqueio de entrada de uma tela nova vencer, em ms. */
 const ESPERA_BLOQUEIO_MS = SEGUNDOS_BLOQUEIO * 1000 + 200;
+/** Onde pôr o Kiwi para o arminho dar o pulinho sem encostar nele (pixels), e quanto esperar o meio dele. */
+const DISTANCIA_PULINHO = 40;
+const ESPERA_PULINHO_MS = COMPORTAMENTO_PREDADOR.arminho.pulinho.segundos * 500;
+/** De quantos pixels acima do Predador o Kiwi cai para capturá-lo: pouco, para o rato, rápido, não escapar. */
+const QUEDA_CAPTURA = 16;
 
 /**
  * Os objetos da camada `objetos` do mapa da Pecuária com esse nome.
@@ -355,7 +365,7 @@ async function verificarReiniciar(pagina) {
   await levarKiwi(checkpoint.x, checkpoint.y - 9);
   await pagina.waitForTimeout(ESPERA_MS / 2);
   const [alvo] = (await estadoDaFase(pagina)).predadores;
-  await levarKiwi(alvo.x, alvo.y - 40);
+  await levarKiwi(alvo.x, alvo.y - QUEDA_CAPTURA);
   await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.getScene(cena).capturas > 0, CENA_FASE, { timeout: 2000 }).catch(() => {});
   const antes = await estadoDaFase(pagina);
   if (antes.capturas !== 1 || antes.textos.includes(`0/${itens.length}`)) problemas.push('a preparação do reinício não coletou um Item nem capturou');
@@ -406,16 +416,26 @@ async function verificarPredadores(pagina, levarKiwi, checkpoint) {
   const [area] = await objetosDaPecuaria('predador');
   const nome = criarTextos().t(chaveNomePredador(area.type));
 
-  await levarKiwi(alvo.x, alvo.y - 40);
+  await levarKiwi(alvo.x, alvo.y - QUEDA_CAPTURA);
   await pagina.waitForFunction((cena) => window.kiwirun.jogo.scene.getScene(cena).capturas > 0, CENA_FASE, { timeout: 2000 }).catch(() => {});
   const capturou = await estadoDaFase(pagina);
   if (capturou.capturas !== 1 || capturou.predadores.length !== inicio.predadores.length - 1) problemas.push('cair sobre um Predador não o capturou');
   if (capturou.vy >= 0) problemas.push('a Captura não fez o Kiwi quicar');
   if (!capturou.textos.includes(nome)) problemas.push(`a Captura não mostrou o nome da espécie "${nome}"`);
 
-  // Espera o Kiwi assentar (fim do quique e do rótulo) e encosta de lado no próximo Predador.
+  // Espera o Kiwi assentar (fim do quique e do rótulo); o próximo Predador é o arminho, que
+  // dá um pulinho quando o Kiwi chega perto, sem encostar nele.
   await levarKiwi(checkpoint.x, checkpoint.y - 9);
   await pagina.waitForTimeout(ESPERA_MS * 3);
+  const { predadores: [arminho] } = await estadoDaFase(pagina);
+  await levarKiwi(arminho.x - DISTANCIA_PULINHO, arminho.y);
+  await pagina.waitForTimeout(ESPERA_PULINHO_MS);
+  const { predadores: [pulando] } = await estadoDaFase(pagina);
+  if (!(pulando.y < arminho.y)) problemas.push(`o arminho não deu o pulinho com o Kiwi perto: ${arminho.y} → ${pulando.y}`);
+
+  // Encosta de lado no arminho, de volta ao chão.
+  await levarKiwi(checkpoint.x, checkpoint.y - 9);
+  await pagina.waitForTimeout(ESPERA_MS * 2);
   const { predadores: [proximo] } = await estadoDaFase(pagina);
   await levarKiwi(proximo.x, proximo.y);
   await pagina.waitForTimeout(ESPERA_MS / 4);
@@ -662,7 +682,7 @@ async function verificarPlacar(pagina) {
   // Arredondado como o Tempo final, para a conta da tela fechar.
   const tempoGasto = textos.tempo(arredondarDecimos(placar.tempoGasto));
   if (!placar.textos.includes(tempoGasto)) problemas.push(`Placar sem o Tempo gasto arredondado "${tempoGasto}"`);
-  if (placar.opcoes.includes('proxima')) problemas.push('Placar oferece "Próxima Fase" com o Porto em breve');
+  if (!placar.opcoes.includes('proxima')) problemas.push('o Placar da Pecuária não oferece "Próxima Fase" (o Porto)');
   if (placar.opcao !== 'jogar_de_novo') problemas.push(`Placar abriu com o cursor em "${placar.opcao}"`);
 
   // Jogar de novo, com o pulo segurado ao entrar na Fase.
@@ -1151,6 +1171,172 @@ async function verificarMusica(pagina) {
 }
 
 /**
+ * Lê da cena Fase o que o smoke do Porto confere: o Kiwi, os guindastes, as lonas das esteiras,
+ * o Checkpoint ativo e o cronômetro.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ * @returns {Promise<{ id: string, x: number, y: number, base: number, segundos: number,
+ *   checkpoint: { x: number, y: number }, guindastes: { x: number, y: number, largura: number, topo: number }[],
+ *   lonas: number[] }>} O estado.
+ */
+function estadoDoPorto(pagina) {
+  return pagina.evaluate((cena) => {
+    const fase = window.kiwirun.jogo.scene.getScene(cena);
+    return {
+      id: fase.fase.id,
+      x: fase.kiwi.x,
+      y: fase.kiwi.y,
+      base: fase.kiwi.body.bottom,
+      segundos: fase.cronometro.segundos,
+      checkpoint: { ...fase.checkpoint },
+      guindastes: fase.guindastes.getChildren().map((viga) => ({ x: viga.x, y: viga.y, largura: viga.width, topo: viga.body.top })),
+      lonas: fase.lonasEsteira.map((lona) => lona.tilePositionX),
+    };
+  }, CENA_FASE);
+}
+
+/**
+ * Põe o Kiwi de pé num ponto da Fase, parado.
+ *
+ * @param {import('playwright').Page} pagina - A página do jogo.
+ * @param {number} x - Centro do Kiwi, em pixels.
+ * @param {number} base - Onde ficam os pés do Kiwi, em pixels.
+ * @returns {Promise<void>}
+ */
+function porKiwi(pagina, x, base) {
+  return pagina.evaluate(([cena, cx, pes]) => {
+    const { kiwi } = window.kiwirun.jogo.scene.getScene(cena);
+    kiwi.body.reset(cx, pes - (kiwi.body.bottom - kiwi.y) - 1);
+  }, [CENA_FASE, x, base]);
+}
+
+/**
+ * Num navegador novo, escolhe o Porto no Menu (uma Fase abaixo da Pecuária) e confere: o
+ * Porto aberto, com guindastes e esteiras parados até o primeiro input; cada esteira
+ * empurrando o Kiwi parado no seu sentido; o guindaste levando o Kiwi montado; o Kiwi
+ * prensado contra um teto num guindaste voltando ao Checkpoint; e o fim abrindo o Placar.
+ *
+ * @param {import('playwright').Browser} navegador - O navegador do smoke.
+ * @param {string} url - O endereço do jogo.
+ * @returns {Promise<string[]>} Os problemas encontrados.
+ */
+async function verificarPorto(navegador, url) {
+  const problemas = [];
+  const contexto = await navegador.newContext({ viewport: { width: 1280, height: 720 } });
+  const pagina = await contexto.newPage();
+  pagina.on('console', (mensagem) => {
+    if (mensagem.type() === 'error') problemas.push(`erro no console no Porto: ${mensagem.text()}`);
+  });
+  pagina.on('pageerror', (erro) => problemas.push(`exceção na página no Porto: ${erro.message}`));
+  try {
+    const mapa = JSON.parse(await readFile(MAPA_PORTO, 'utf8'));
+    const objetos = mapa.layers.find((camada) => camada.name === 'objetos').objects;
+    await pagina.goto(url);
+    await pagina.waitForFunction((cena) => window.kiwirun?.jogo?.scene.isActive(cena), CENA_TELA_INICIAL, { timeout: LIMITE_MS });
+    await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+    await pagina.keyboard.press('Enter');
+    if (!(await esperarCena(pagina, CENA_MENU))) return ['Enter na Tela inicial não abriu o Menu do Porto'];
+    await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+    await pagina.keyboard.press('ArrowDown');
+    await pagina.waitForTimeout(ESPERA_MS / 4);
+    const sobCursor = await pagina.evaluate((cena) => window.kiwirun.jogo.scene.getScene(cena).menu.fase?.id, CENA_MENU);
+    if (sobCursor !== FASE_PORTO) return [`abaixo da Pecuária, o cursor do Menu foi a "${sobCursor}", não ao Porto`];
+    await pagina.keyboard.press('Enter');
+    await pagina.waitForFunction(
+      (cena) => window.kiwirun.jogo.scene.getScene(cena)?.kiwi?.active === true,
+      CENA_FASE,
+      { timeout: LIMITE_MS },
+    );
+
+    const antes = await estadoDoPorto(pagina);
+    if (antes.id !== FASE_PORTO) return [`o Menu abriu "${antes.id}", não o Porto`];
+    if (antes.guindastes.length === 0 || antes.lonas.length === 0) problemas.push('o Porto abriu sem guindastes ou sem esteiras');
+    await pagina.waitForTimeout(ESPERA_MS);
+    const parado = await estadoDoPorto(pagina);
+    if (JSON.stringify(parado.guindastes) !== JSON.stringify(antes.guindastes) || JSON.stringify(parado.lonas) !== JSON.stringify(antes.lonas)) {
+      problemas.push('guindastes ou esteiras se mexeram antes do primeiro input');
+    }
+
+    // O primeiro mover dá a partida na Fase.
+    await pagina.waitForTimeout(ESPERA_BLOQUEIO_MS);
+    await pagina.keyboard.down('ArrowRight');
+    await pagina.waitForTimeout(ESPERA_MS / 4);
+    await pagina.keyboard.up('ArrowRight');
+    if ((await estadoDoPorto(pagina)).segundos === 0) problemas.push('o primeiro mover não deu a partida no Porto');
+
+    for (const esteira of objetos.filter((objeto) => objeto.name === 'esteira')) {
+      const sentido = esteira.properties.find((propriedade) => propriedade.name === 'sentido').value;
+      await porKiwi(pagina, esteira.x + esteira.width / 2, esteira.y);
+      await pagina.waitForTimeout(ESPERA_MS / 4);
+      const inicio = await estadoDoPorto(pagina);
+      await pagina.waitForTimeout(ESPERA_MS);
+      const depois = await estadoDoPorto(pagina);
+      if (Math.sign(depois.x - inicio.x) !== sentido) problemas.push(`a esteira de sentido ${sentido} não empurrou o Kiwi parado: ${inicio.x} → ${depois.x}`);
+      if (JSON.stringify(depois.lonas) === JSON.stringify(inicio.lonas)) problemas.push('as lonas das esteiras não rolaram com a Fase andando');
+    }
+
+    // Montado no guindaste, o Kiwi sobe e desce com a viga, de pé sobre ela.
+    const [viga] = (await estadoDoPorto(pagina)).guindastes;
+    await porKiwi(pagina, viga.x + viga.largura / 2, viga.topo);
+    await pagina.waitForTimeout(ESPERA_MS / 4);
+    const montado = await estadoDoPorto(pagina);
+    await pagina.waitForTimeout(ESPERA_MS * 2);
+    const levado = await estadoDoPorto(pagina);
+    const [vigaAntes] = montado.guindastes;
+    const [vigaDepois] = levado.guindastes;
+    if (vigaDepois.y === vigaAntes.y) problemas.push('o guindaste não se mexeu com a Fase andando');
+    if (Math.abs(levado.base - vigaDepois.topo) > 2 || Math.sign(levado.y - montado.y) !== Math.sign(vigaDepois.y - vigaAntes.y)) {
+      problemas.push(`o guindaste não levou o Kiwi montado: viga ${vigaAntes.y} → ${vigaDepois.y}, Kiwi ${montado.y} → ${levado.y} (pés ${levado.base})`);
+    }
+
+    // Um teto logo acima do Kiwi montado no guindaste que sobe o prensa: ele volta ao Checkpoint.
+    const { checkpoint } = levado;
+    await pagina.waitForFunction((cena) => {
+      const [primeira] = window.kiwirun.jogo.scene.getScene(cena).guindastes.getChildren();
+      return primeira.y >= primeira.getData('maxY') - 1;
+    }, CENA_FASE, { timeout: LIMITE_MS });
+    const [noBaixo] = (await estadoDoPorto(pagina)).guindastes;
+    await porKiwi(pagina, noBaixo.x + noBaixo.largura / 2, noBaixo.topo);
+    await pagina.waitForTimeout(ESPERA_MS / 8);
+    await pagina.evaluate((cena) => {
+      const fase = window.kiwirun.jogo.scene.getScene(cena);
+      const [primeira] = fase.guindastes.getChildren();
+      // Um tile sólido na camada de colisão, logo acima da cabeça do Kiwi, como um teto do mapa.
+      const colisao = fase.children.list.find((objeto) => objeto.layer?.name === 'colisao');
+      const linha = Math.floor((fase.kiwi.body.top - 2) / 18) - 1;
+      for (let coluna = Math.floor(primeira.x / 18); coluna < Math.ceil((primeira.x + primeira.width) / 18); coluna += 1) {
+        colisao.putTileAt(1, coluna, linha).setCollision(true, true, true, true);
+      }
+    }, CENA_FASE);
+    const voltou = await pagina.waitForFunction(
+      ([cena, x, y]) => {
+        const { kiwi } = window.kiwirun.jogo.scene.getScene(cena);
+        return Math.abs(kiwi.x - x) < 2 && Math.abs(kiwi.y - y) < 4;
+      },
+      [CENA_FASE, checkpoint.x, checkpoint.y],
+      { timeout: 3000 },
+    ).then(() => true, () => false);
+    if (!voltou) problemas.push('o Kiwi prensado num guindaste não voltou ao Checkpoint');
+
+    const fim = objetos.find((objeto) => objeto.name === 'fim');
+    await pagina.evaluate(([cena, x, y]) => {
+      window.kiwirun.jogo.scene.getScene(cena).kiwi.body.reset(x, y);
+    }, [CENA_FASE, fim.x + fim.width / 2, fim.y + fim.height / 2]);
+    const terminou = await pagina.waitForFunction(
+      (cenas) => cenas.some((cena) => window.kiwirun.jogo.scene.isActive(cena)),
+      [CENA_INICIAIS, CENA_PLACAR],
+      { timeout: 2000 },
+    ).then(() => true, () => false);
+    if (!terminou) problemas.push('tocar o fim do Porto não abriu as Iniciais nem o Placar');
+  } catch (erro) {
+    problemas.push(`Porto não carregou pelo Menu: ${erro.message}`);
+  } finally {
+    await contexto.close();
+  }
+  return problemas;
+}
+
+/**
  * Abre o jogo num aparelho de toque emulado, sem Wake Lock no navegador: a Tela inicial mostra
  * "Jogue no computador" com o link do Pages, nada quebra, e uma tecla abre o Menu mesmo assim.
  *
@@ -1289,6 +1475,7 @@ async function verificarJogo(url) {
     problemas.push(...await verificarSilencio(pagina));
     problemas.push(...await verificarMusica(pagina));
     problemas.push(...await verificarToque(navegador, url));
+    problemas.push(...await verificarPorto(navegador, url));
   } catch (erro) {
     problemas.push(`Pecuária não carregou pelo Menu: ${erro.message}`);
   } finally {
@@ -1305,4 +1492,4 @@ if (problemas.length > 0) {
   console.error(`Smoke falhou:\n- ${problemas.join('\n- ')}`);
   process.exit(1);
 }
-console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu, Créditos e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Placas, Ovelhas, Iniciais, Placar, Recorde (recarregar e zerar), Pausa, bloqueio de entrada, Volta por inatividade, efeitos sonoros, Silêncio, música, aviso de toque e Wake Lock funcionando, sem erro no console nem requisição fora da origem.');
+console.log('Smoke ok: Tela inicial, seletor PT | EN, Menu, Créditos e Pecuária abertos, HUD, Itens, Samambaias-prateadas, Fatos, Checkpoint, Predadores, Placas, Ovelhas, Iniciais, Placar, Recorde (recarregar e zerar), Pausa, bloqueio de entrada, Volta por inatividade, efeitos sonoros, Silêncio, música, aviso de toque, Wake Lock e o Porto (guindastes e esteiras) funcionando, sem erro no console nem requisição fora da origem.');

@@ -7,11 +7,17 @@
  * (o id do Item no tipo do objeto), cada `samambaia` (a chave do Fato no tipo) e cada
  * `placa` (a chave do texto no tipo e a ação na propriedade `acao`, sobre um tile de placa
  * na camada `fundo`), além das
- * áreas `fim` e `predador` (a espécie no tipo; o Predador patrulha de uma ponta à outra) e `ovelha` (a
- * Ovelha anda de uma ponta à outra, plataforma móvel de mão única). A Samambaia-prateada escondida ganha uma folhagem na camada `frente` por cima.
+ * áreas `fim` e `predador` (a espécie no tipo; o Predador patrulha de uma ponta à outra, no chão
+ * ou, na espécie de plataforma alta, sobre uma plataforma) e `ovelha` (a
+ * Ovelha anda de uma ponta à outra, plataforma móvel de mão única) e `esteira` (o tile de cima
+ * do chão, com o sentido na propriedade `sentido`) e `guindaste` (a viga sobe e desce entre o
+ * alto, no topo da área, e o baixo, na base dela). A Samambaia-prateada escondida ganha uma folhagem na camada `frente` por cima.
+ * No piso de cais, o chão é concreto, o mar aparece no fundo dos vãos e as pilhas de contêiner
+ * ficam sólidas na camada `colisao`, com o tileset do Porto embutido depois do Kenney.
  *
- * Recusa vãos, degraus, plataformas e Itens além das constantes do pulo, trajetos de
- * Ovelha com vão de esmagamento, e recusa sobrescrever
+ * Recusa vãos, degraus, plataformas, pilhas de contêiner e Itens além das constantes do pulo,
+ * patrulhas de Predador que fogem do comportamento da espécie (longas demais, fora da plataforma),
+ * trajetos de Ovelha e de guindaste com vão de esmagamento, esteiras sem sentido, e recusa sobrescrever
  * um `.tmj` existente sem `--force` (o arquivo pode ter sido enfeitado no Tiled).
  *
  * Uso: `npm run gerar:fase -- <id> [--force] [--saida <arquivo>]`.
@@ -20,10 +26,18 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PULO, TILE } from '../src/logica/pulo.js';
-import { COLUNAS, IMAGEM, NOME, QUANTIDADE, TILES, UMA_MAO } from './tileset.js';
+import { SENTIDOS_ESTEIRA } from '../src/logica/esteira.js';
+import { COMPORTAMENTO_PREDADOR } from '../src/logica/catalogo.js';
+import { COLUNAS, IMAGEM, NOME, QUANTIDADE, TILES, TILES_PORTO, TILESET_PORTO, UMA_MAO } from './tileset.js';
 
 const RAIZ_REPO = fileURLToPath(new URL('..', import.meta.url));
 const PRIMEIRO_GID = 1;
+/** O tileset do Porto vem logo depois do Kenney: seus tiles são contados a partir daqui. */
+const INICIO_PORTO = QUANTIDADE;
+/** Linhas de mar no fundo de cada vão do cais. */
+const LINHAS_MAR = 2;
+/** Contêineres da pilha, alternados por coluna e andar. */
+const CORES_CONTEINER = Object.freeze([TILES_PORTO.conteinerVermelho, TILES_PORTO.conteinerAzul, TILES_PORTO.conteinerVerde]);
 /** Colunas entre o começo do primeiro chão e o início do Kiwi. */
 const COLUNA_INICIO = 2;
 /** Colunas entre o fim do último chão e a bandeira de chegada. */
@@ -31,6 +45,8 @@ const RECUO_FIM = 3;
 const ALTURA_FIM = 3;
 /** Tiles acima do trajeto da Ovelha que ficam livres: a Ovelha e o Kiwi montado nela. */
 const ALTURA_LIVRE_OVELHA = 2;
+/** Tiles acima da viga do guindaste, no alto, que ficam livres para o Kiwi montado nela. */
+const ALTURA_LIVRE_GUINDASTE = 2;
 
 /**
  * @typedef {{ chao: number, altura: number } | { vao: number }} Trecho
@@ -63,7 +79,8 @@ const ALTURA_LIVRE_OVELHA = 2;
  * @typedef {Object} PredadorNoMapa
  * @property {string} especie - Espécie de Predador do catálogo.
  * @property {number} de - Primeira coluna da patrulha.
- * @property {number} ate - Última coluna da patrulha; de `de` a `ate` o chão é plano.
+ * @property {number} ate - Última coluna da patrulha; de `de` a `ate` o chão é plano ou, na
+ *   espécie de plataforma alta, uma só plataforma cobre a patrulha.
  */
 
 /**
@@ -81,8 +98,36 @@ const ALTURA_LIVRE_OVELHA = 2;
  */
 
 /**
+ * @typedef {Object} ConteineresNoMapa
+ * @property {number} coluna - Primeira coluna da pilha; de `coluna` em diante o chão é plano.
+ * @property {number} largura - Em tiles.
+ * @property {number} altura - Contêineres empilhados sobre o chão; o pulo precisa vencê-los.
+ */
+
+/**
+ * @typedef {Object} EsteiraNoMapa
+ * @property {number} de - Primeira coluna da esteira.
+ * @property {number} ate - Última coluna; de `de` a `ate` o chão é plano.
+ * @property {1 | -1} sentido - Para onde ela empurra o Kiwi: 1 à direita, -1 à esquerda.
+ */
+
+/**
+ * @typedef {Object} GuindasteNoMapa
+ * @property {number} coluna - Primeira coluna da viga; embaixo dela o chão é plano.
+ * @property {number} largura - Em tiles.
+ * @property {number} baixo - Tiles entre o chão e o topo da viga no ponto mais baixo; o pulo
+ *   alcança.
+ * @property {number} alto - Tiles entre o chão e o topo da viga no ponto mais alto.
+ */
+
+/**
  * @typedef {Object} DescricaoFase
  * @property {number} altura - Altura do mapa, em tiles.
+ * @property {'pasto' | 'cais'} [piso] - O chão: grama e terra (o padrão) ou o concreto do
+ *   cais, com o mar no fundo dos vãos e o tileset do Porto embutido.
+ * @property {ConteineresNoMapa[]} [conteineres] - Pilhas sólidas de contêineres sobre o chão.
+ * @property {EsteiraNoMapa[]} [esteiras] - As esteiras e seus sentidos.
+ * @property {GuindasteNoMapa[]} [guindastes] - Os guindastes e seus trajetos.
  * @property {Trecho[]} trechos - Da esquerda para a direita; o primeiro e o último são chão.
  * @property {Plataforma[]} plataformas - Plataformas de mão única.
  * @property {ItemNoMapa[]} [itens] - Itens a coletar.
@@ -166,26 +211,43 @@ function camadaDeTiles(id, nome, largura, altura) {
 }
 
 /**
- * Monta o tileset embutido, com a imagem relativa ao `.tmj` em `assets/mapas/`.
+ * Monta um tileset embutido, com a imagem relativa ao `.tmj` em `assets/mapas/`.
  *
+ * @param {{ nome: string, imagem: string, colunas: number, quantidade: number, firstgid: number }} tileset
+ *   - O PNG, a grade e o primeiro gid do tileset.
  * @returns {object} O tileset no formato Tiled.
  */
-function tilesetEmbutido() {
-  const linhas = Math.ceil(QUANTIDADE / COLUNAS);
+function tilesetEmbutido({ nome, imagem, colunas, quantidade, firstgid }) {
+  const linhas = Math.ceil(quantidade / colunas);
   return {
-    columns: COLUNAS,
-    firstgid: PRIMEIRO_GID,
-    image: relative('assets/mapas', IMAGEM).replaceAll('\\', '/'),
+    columns: colunas,
+    firstgid,
+    image: relative('assets/mapas', imagem).replaceAll('\\', '/'),
     imageheight: linhas * TILE,
-    imagewidth: COLUNAS * TILE,
+    imagewidth: colunas * TILE,
     margin: 0,
-    name: NOME,
+    name: nome,
     spacing: 0,
-    tilecount: QUANTIDADE,
+    tilecount: quantidade,
     tileheight: TILE,
     tilewidth: TILE,
+  };
+}
+
+/**
+ * Os tilesets embutidos no mapa: o Kenney, com as plataformas de mão única, e, no cais, o do
+ * Porto logo depois dele.
+ *
+ * @param {boolean} comPorto - Se o mapa usa o tileset do Porto.
+ * @returns {object[]} Os tilesets no formato Tiled.
+ */
+function tilesetsEmbutidos(comPorto) {
+  const kenney = {
+    ...tilesetEmbutido({ nome: NOME, imagem: IMAGEM, colunas: COLUNAS, quantidade: QUANTIDADE, firstgid: PRIMEIRO_GID }),
     tiles: UMA_MAO.map((id) => ({ id, properties: [{ name: 'umaMao', type: 'bool', value: true }] })),
   };
+  if (!comPorto) return [kenney];
+  return [kenney, tilesetEmbutido({ ...TILESET_PORTO, firstgid: PRIMEIRO_GID + INICIO_PORTO })];
 }
 
 /**
@@ -203,12 +265,22 @@ export function gerarMapa(descricao) {
   const colisao = camadaDeTiles(2, 'colisao', largura, altura);
   const frente = camadaDeTiles(3, 'frente', largura, altura);
   const topo = (coluna) => altura - chao[coluna];
+  const cais = descricao.piso === 'cais';
+  const porto = (tile) => INICIO_PORTO + tile;
+  const piso = cais
+    ? { topo: porto(TILES_PORTO.concreto), corpo: porto(TILES_PORTO.concretoBase) }
+    : { topo: TILES.grama, corpo: TILES.terra };
 
   chao.forEach((alturaChao, coluna) => {
-    if (alturaChao === 0) return;
-    colisao.pintar(coluna, topo(coluna), TILES.grama);
-    for (let linha = topo(coluna) + 1; linha < altura; linha += 1) colisao.pintar(coluna, linha, TILES.terra);
-    if (coluna % 7 === 3) fundo.pintar(coluna, topo(coluna) - 1, TILES.arbusto);
+    if (alturaChao === 0) {
+      if (!cais) return;
+      fundo.pintar(coluna, altura - LINHAS_MAR, TILES.mar);
+      for (let linha = altura - LINHAS_MAR + 1; linha < altura; linha += 1) fundo.pintar(coluna, linha, TILES.marFundo);
+      return;
+    }
+    colisao.pintar(coluna, topo(coluna), piso.topo);
+    for (let linha = topo(coluna) + 1; linha < altura; linha += 1) colisao.pintar(coluna, linha, piso.corpo);
+    if (!cais && coluna % 7 === 3) fundo.pintar(coluna, topo(coluna) - 1, TILES.arbusto);
     if (coluna % 11 === 6) fundo.pintar(coluna, 3 + (coluna % 3), TILES.nuvem);
   });
 
@@ -219,6 +291,21 @@ export function gerarMapa(descricao) {
     }
     const linha = topo(coluna) - alturaSobreChao;
     for (let i = 0; i < larguraPlataforma; i += 1) colisao.pintar(coluna + i, linha, TILES.plataforma);
+  }
+
+  for (const { coluna, largura: larguraPilha, altura: alturaPilha } of descricao.conteineres ?? []) {
+    const colunas = chao.slice(coluna, coluna + larguraPilha);
+    if (colunas.length !== larguraPilha || !colunas.every((alturaChao) => alturaChao > 0 && alturaChao === colunas[0])) {
+      throw new Error(`contêineres entre as colunas ${coluna} e ${coluna + larguraPilha - 1}: a pilha pede chão plano, sem vão`);
+    }
+    if (alturaPilha > PULO.segurado.altura) {
+      throw new Error(`contêineres de ${alturaPilha} tiles na coluna ${coluna}: o pulo sobe ${PULO.segurado.altura}`);
+    }
+    for (let i = 0; i < larguraPilha; i += 1) {
+      for (let andar = 1; andar <= alturaPilha; andar += 1) {
+        colisao.pintar(coluna + i, topo(coluna) - andar, porto(CORES_CONTEINER[(coluna + i + andar) % CORES_CONTEINER.length]));
+      }
+    }
   }
 
   const colunaFim = largura - RECUO_FIM;
@@ -272,6 +359,17 @@ export function gerarMapa(descricao) {
     });
   }
   for (const { especie, de, ate } of descricao.predadores ?? []) {
+    const { patrulhaMaxima, plataformaAlta } = COMPORTAMENTO_PREDADOR[especie] ?? {};
+    if (patrulhaMaxima !== undefined && ate - de + 1 > patrulhaMaxima) {
+      throw new Error(`predador ${especie} entre as colunas ${de} e ${ate}: a patrulha da espécie tem no máximo ${patrulhaMaxima} colunas`);
+    }
+    if (plataformaAlta) {
+      const plataforma = descricao.plataformas.find(({ coluna, largura: larguraPlataforma }) => coluna <= de && ate < coluna + larguraPlataforma);
+      if (!plataforma) throw new Error(`predador ${especie} entre as colunas ${de} e ${ate}: a espécie patrulha sobre uma plataforma alta, de ponta a ponta`);
+      const linhaPlataforma = topo(plataforma.coluna) - plataforma.alturaSobreChao;
+      objetos.push({ ...areaSobreOChao('predador', especie, de, ate), y: (linhaPlataforma - 1) * TILE });
+      continue;
+    }
     if (!plano(de, ate)) throw new Error(`predador ${especie} entre as colunas ${de} e ${ate}: a patrulha pede chão plano, sem vão`);
     objetos.push(areaSobreOChao('predador', especie, de, ate));
   }
@@ -287,6 +385,42 @@ export function gerarMapa(descricao) {
       }
     }
     objetos.push(areaSobreOChao('ovelha', '', de, ate));
+  }
+  for (const { coluna, largura: larguraViga, baixo, alto } of descricao.guindastes ?? []) {
+    const ultima = coluna + larguraViga - 1;
+    if (!plano(coluna, ultima)) throw new Error(`guindaste entre as colunas ${coluna} e ${ultima}: o trajeto pede chão plano, sem vão`);
+    if (baixo < 1 || baixo > PULO.segurado.altura) {
+      throw new Error(`guindaste na coluna ${coluna} desce a ${baixo} tiles do chão: o Kiwi sobe nele de 1 a ${PULO.segurado.altura}`);
+    }
+    if (alto <= baixo) throw new Error(`guindaste na coluna ${coluna} não sobe: vai de ${baixo} a ${alto} tiles do chão`);
+    // A viga varre as suas colunas da linha mais baixa à mais alta, com o Kiwi em cima dela; no
+    // alto, nada sólido sobre o Kiwi nem nas colunas vizinhas, para ele nunca ser prensado.
+    const linhaAlta = topo(coluna) - alto;
+    const livre = (de, ate, linhaDe, linhaAte) => {
+      for (let col = Math.max(0, de); col <= Math.min(largura - 1, ate); col += 1) {
+        for (let linha = linhaDe; linha <= linhaAte; linha += 1) {
+          if (linha < 0 || colisao.camada.data[linha * largura + col] !== 0) {
+            throw new Error(`guindaste na coluna ${coluna}: algo sólido na coluna ${col}, linha ${linha}, faz vão de esmagamento`);
+          }
+        }
+      }
+    };
+    livre(coluna, ultima, linhaAlta - ALTURA_LIVRE_GUINDASTE, topo(coluna) - baixo);
+    livre(coluna - 1, ultima + 1, linhaAlta - ALTURA_LIVRE_GUINDASTE, linhaAlta - 1);
+    objetos.push({
+      height: (alto - baixo + 1) * TILE, name: 'guindaste', rotation: 0, type: '', visible: true,
+      width: larguraViga * TILE, x: coluna * TILE, y: linhaAlta * TILE,
+    });
+  }
+  for (const { de, ate, sentido } of descricao.esteiras ?? []) {
+    if (!plano(de, ate)) throw new Error(`esteira entre as colunas ${de} e ${ate}: a esteira pede chão plano, sem vão`);
+    if (!SENTIDOS_ESTEIRA.includes(sentido)) throw new Error(`esteira entre as colunas ${de} e ${ate}: sentido ${sentido}, e não 1 ou -1`);
+    // A esteira é o tile de cima do chão: o Kiwi pisa nela.
+    objetos.push({
+      ...areaSobreOChao('esteira', '', de, ate),
+      y: topo(de) * TILE,
+      properties: [{ name: 'sentido', type: 'int', value: sentido }],
+    });
   }
   objetos.forEach((objeto, indice) => { objeto.id = indice + 1; });
 
@@ -306,7 +440,7 @@ export function gerarMapa(descricao) {
     renderorder: 'right-down',
     tiledversion: '1.11.0',
     tileheight: TILE,
-    tilesets: [tilesetEmbutido()],
+    tilesets: tilesetsEmbutidos(cais),
     tilewidth: TILE,
     type: 'map',
     version: '1.10',

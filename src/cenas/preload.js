@@ -8,10 +8,14 @@ import { andamentosDoJogo, chaveMusica, faixaMusica } from '../logica/musica.js'
 import { aplicarSilencio } from './silencio.js';
 
 export const FONTE = 'kiwirun';
+/** Os tilesets das Fases: a chave da textura é o nome do tileset no `.tmj`. */
 export const TEXTURA_TILESET = 'tileset';
+export const TEXTURA_TILESET_PORTO = 'porto';
 export const TEXTURA_KIWI = 'kiwi';
 export const TEXTURA_SAMAMBAIA = 'samambaia';
 export const TEXTURA_OVELHA = 'ovelha';
+export const TEXTURA_ESTEIRA = 'esteira';
+export const TEXTURA_GUINDASTE = 'guindaste';
 /** A faixa de ícones de botão das Placas, um quadro 18×18 por botão (ordem de `BOTOES`). */
 export const TEXTURA_BOTOES = 'botoes';
 /** O ícone de som cortado, mostrado em toda cena enquanto o Silêncio estiver ligado. */
@@ -40,10 +44,13 @@ export class Preload extends Phaser.Scene {
   preload() {
     this.load.bitmapFont(FONTE, 'assets/fonte/kiwirun.png', 'assets/fonte/kiwirun.xml');
     this.load.image(TEXTURA_TILESET, 'assets/tiles/tileset.png');
+    this.load.image(TEXTURA_TILESET_PORTO, 'assets/tiles/porto.png');
     this.load.spritesheet(TEXTURA_QUADROS_TILESET, 'assets/tiles/tileset.png', { frameWidth: QUADRO, frameHeight: QUADRO });
     this.load.spritesheet(TEXTURA_KIWI, 'assets/sprites/kiwi.png', { frameWidth: QUADRO, frameHeight: QUADRO });
     this.load.image(TEXTURA_SAMAMBAIA, 'assets/sprites/samambaia.png');
     this.load.image(TEXTURA_OVELHA, 'assets/sprites/ovelha.png');
+    this.load.image(TEXTURA_ESTEIRA, 'assets/sprites/esteira.png');
+    this.load.image(TEXTURA_GUINDASTE, 'assets/sprites/guindaste.png');
     this.load.spritesheet(TEXTURA_BOTOES, 'assets/sprites/botoes.png', { frameWidth: QUADRO, frameHeight: QUADRO });
     for (const especie of PREDADORES) this.load.image(texturaPredador(especie), imagemPredador(especie));
     this.load.image(TEXTURA_SILENCIO, 'assets/sprites/silencio.png');

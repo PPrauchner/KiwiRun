@@ -8,12 +8,17 @@
  * primeiro mover ou pular, a Fase
  * e o cronômetro ficam parados. O HUD mostra o Tempo gasto, os Itens em "X/Y" e as
  * Samambaias-prateadas em "X/3"; pegar uma põe o seu Fato na Fila de Fatos, mostrada no topo
- * da tela sem pausar o jogo. Os Predadores patrulham entre as pontas da sua área no mapa:
+ * da tela sem pausar o jogo. Os Predadores patrulham entre as pontas da sua área no mapa, cada
+ * espécie no seu ritmo, e o arminho dá um pulinho quando o Kiwi chega perto; em todas,
  * cair sobre um é Captura (armadilha, quique e o nome da espécie flutuando); qualquer outro
  * contato devolve o Kiwi ao Checkpoint, onde ele fica invulnerável, piscando, por ~1 s. Os
  * controles vêm do Input unificado, que ignora a entrada nos primeiros ~0,5 s da Fase. As
  * Ovelhas andam de uma ponta à outra do trajeto como plataformas sólidas só por cima: levam
  * o Kiwi montado, não o ferem e, se ele ficar prensado em cima de uma, o devolvem ao Checkpoint.
+ * As esteiras empurram o Kiwi apoiado nelas no sentido marcado e só rolam com a Fase andando.
+ * Os guindastes sobem e descem a viga entre as pontas do trajeto, sólida só por cima: levam o
+ * Kiwi montado, não o ferem e, se ele ficar prensado contra o teto em cima de um (segurando a
+ * viga ou atravessado por ela), o devolvem ao Checkpoint; a viga segurada volta.
  * Cada Placa mostra, fixa sobre o seu poste, os ícones dos botões e uma frase no idioma atual.
  * Pular, coletar um Item, capturar e pegar uma Samambaia-prateada tocam cada um o seu efeito
  * sonoro; M ou Select alternam o Silêncio sem dar a partida na Fase congelada.
@@ -22,8 +27,9 @@
  * abrem a Pausa por cima e pausam esta cena: o jogo, o cronômetro e a Fila de Fatos param
  * com ela. Antes do primeiro input, continuar devolve a Fase ainda congelada.
  */
-import { buscarFase, chaveNomePredador, imagemItem } from '../logica/catalogo.js';
+import { buscarFase, chaveNomePredador, COMPORTAMENTO_PREDADOR, imagemItem } from '../logica/catalogo.js';
 import { resolverContato, SEGUNDOS_INVULNERAVEL, SEGUNDOS_ROTULO_CAPTURA } from '../logica/captura.js';
+import { criarPulinho } from '../logica/pulinho.js';
 import { criarControlePulo } from '../logica/controle-pulo.js';
 import { criarCronometro } from '../logica/cronometro.js';
 import { chaveEfeito } from '../logica/efeitos.js';
@@ -33,7 +39,9 @@ import { calcularPlacarDaTentativa } from '../logica/placar.js';
 import { FISICA, TILE } from '../logica/pulo.js';
 import { criarVigiaPreso } from '../logica/ovelha.js';
 import { acaoDaPlaca, BOTOES, BOTOES_DA_ACAO } from '../logica/placa.js';
-import { FONTE, TEXTURA_BOTOES, TEXTURA_KIWI, TEXTURA_OVELHA, TEXTURA_QUADROS_TILESET, TEXTURA_SAMAMBAIA, TEXTURA_TILESET, texturaPredador } from './preload.js';
+import { sentidoDaEsteira } from '../logica/esteira.js';
+import { esmagadoNoGuindaste, moverViga, SEGUNDOS_MONTADO } from '../logica/guindaste.js';
+import { FONTE, TEXTURA_BOTOES, TEXTURA_ESTEIRA, TEXTURA_GUINDASTE, TEXTURA_KIWI, TEXTURA_OVELHA, TEXTURA_QUADROS_TILESET, TEXTURA_SAMAMBAIA, texturaPredador } from './preload.js';
 import { lerEntrada } from './entrada.js';
 import { criarVigiaInatividade } from './inatividade.js';
 import { criarControleSilencio } from './silencio.js';
@@ -67,12 +75,18 @@ const OPACIDADE_FUNDO_FATO = 0.8;
 /** Aviso da Placa, sobre o poste: folga entre ícones, texto e borda da faixa escura. */
 const FOLGA_PLACA = 3;
 
-/** Predador: hitbox no sprite de 18×18 e velocidade da patrulha, em pixels por segundo. */
+/** Predador: hitbox no sprite de 18×18; a velocidade da patrulha é da espécie, no Catálogo. */
 const HITBOX_PREDADOR = Object.freeze({ largura: 14, altura: 10, x: 2, y: 8 });
-const VELOCIDADE_PREDADOR = 30;
 /** Ovelha: hitbox no sprite de 18×18 (o topo é o velo onde o Kiwi pisa) e velocidade do trajeto. */
 const HITBOX_OVELHA = Object.freeze({ largura: 14, altura: 13, x: 1, y: 5 });
 const VELOCIDADE_OVELHA = 24;
+/** Esteira: quanto ela soma à velocidade do Kiwi apoiado nela, em pixels por segundo. */
+const VELOCIDADE_ESTEIRA = 40;
+/** Guindaste: altura da viga no sprite (onde o Kiwi pisa), velocidade e o cabo que a segura. */
+const ALTURA_VIGA = 8;
+const VELOCIDADE_GUINDASTE = 30;
+const LARGURA_CABO = 2;
+const COR_CABO = 0x222034;
 /** Armadilha da Captura: a caixa que desce sobre o Predador, e quanto o rótulo sobe. */
 const COR_ARMADILHA = 0x8f563b;
 const COR_BORDA_ARMADILHA = 0x45283c;
@@ -144,10 +158,11 @@ export class Fase extends Phaser.Scene {
 
   create() {
     const mapa = this.make.tilemap({ key: this.chaveMapa });
-    const tileset = mapa.addTilesetImage(mapa.tilesets[0].name, TEXTURA_TILESET);
-    mapa.createLayer('fundo', tileset);
-    const colisao = mapa.createLayer('colisao', tileset);
-    const frente = mapa.createLayer('frente', tileset);
+    // Cada tileset do mapa (o Kenney e, no Porto, o do cais) usa a textura de mesmo nome.
+    const tilesets = mapa.tilesets.map(({ name }) => mapa.addTilesetImage(name, name));
+    mapa.createLayer('fundo', tilesets);
+    const colisao = mapa.createLayer('colisao', tilesets);
+    const frente = mapa.createLayer('frente', tilesets);
     colisao.setCollisionByExclusion([-1]);
     colisao.forEachTile((tile) => {
       if (tile.index >= 0 && ehUmaMao(tile)) tile.setCollision(false, false, true, false);
@@ -183,6 +198,8 @@ export class Fase extends Phaser.Scene {
     for (const checkpoint of objetos.filter((objeto) => objeto.name === 'checkpoint')) this.criarCheckpoint(checkpoint);
     this.criarPredadores(objetos.filter((objeto) => objeto.name === 'predador'));
     this.criarOvelhas(objetos.filter((objeto) => objeto.name === 'ovelha'));
+    this.criarEsteiras(objetos.filter((objeto) => objeto.name === 'esteira'));
+    this.criarGuindastes(objetos.filter((objeto) => objeto.name === 'guindaste'));
 
     this.configurarCamera(mapa);
     this.entrada = criarInput();
@@ -298,8 +315,8 @@ export class Fase extends Phaser.Scene {
   }
 
   /**
-   * Põe cada Predador na ponta esquerda da sua área, já andando para a direita; a física
-   * pausada o segura até o primeiro mover ou pular.
+   * Põe cada Predador na ponta esquerda da sua área, já andando para a direita na velocidade da
+   * espécie; a física pausada o segura até o primeiro mover ou pular.
    *
    * @param {Phaser.Types.Tilemaps.TiledObject[]} areas - As áreas `predador` do mapa.
    */
@@ -309,25 +326,36 @@ export class Fase extends Phaser.Scene {
     for (const { x, y, width: largura, height: altura, type: especie } of areas) {
       const predador = this.predadores.create(x + TILE / 2, y + altura - TILE / 2, texturaPredador(especie));
       predador.body.setSize(HITBOX_PREDADOR.largura, HITBOX_PREDADOR.altura).setOffset(HITBOX_PREDADOR.x, HITBOX_PREDADOR.y);
-      predador.setData({ especie, minX: x + TILE / 2, maxX: x + largura - TILE / 2 });
-      predador.setVelocityX(VELOCIDADE_PREDADOR);
+      const { velocidade, pulinho } = COMPORTAMENTO_PREDADOR[especie];
+      predador.setData({ especie, velocidade, minX: x + TILE / 2, maxX: x + largura - TILE / 2 });
+      if (pulinho) predador.setData({ pulinho: criarPulinho(pulinho), baseY: predador.y });
+      predador.setVelocityX(velocidade);
     }
     this.physics.add.overlap(this.kiwi, this.predadores, (_kiwi, predador) => this.tocarPredador(predador));
   }
 
   /** Vira cada Predador e cada Ovelha ao chegar a uma ponta do trajeto. */
   patrulhar() {
-    const andantes = [
-      [this.predadores, VELOCIDADE_PREDADOR],
-      [this.ovelhas, VELOCIDADE_OVELHA],
-    ];
-    for (const [grupo, velocidade] of andantes) {
+    for (const grupo of [this.predadores, this.ovelhas]) {
       for (const andante of grupo.getChildren()) {
-        const { minX, maxX } = andante.data.values;
+        const { minX, maxX, velocidade } = andante.data.values;
         if (andante.x <= minX) andante.setVelocityX(velocidade);
         else if (andante.x >= maxX) andante.setVelocityX(-velocidade);
         andante.setFlipX(andante.body.velocity.x < 0);
       }
+    }
+  }
+
+  /**
+   * Ergue cada Predador de pulinho (o arminho) na altura do pulinho, pela distância até o Kiwi.
+   *
+   * @param {number} dt - Segundos do passo.
+   */
+  pularPredadores(dt) {
+    for (const predador of this.predadores.getChildren()) {
+      const { pulinho, baseY } = predador.data.values;
+      if (!pulinho || !predador.body.enable) continue;
+      predador.y = baseY - pulinho.avancar(this.kiwi.x - predador.x, dt);
     }
   }
 
@@ -348,7 +376,7 @@ export class Fase extends Phaser.Scene {
       ovelha.body.checkCollision.down = false;
       ovelha.body.checkCollision.left = false;
       ovelha.body.checkCollision.right = false;
-      ovelha.setData({ minX: x + TILE / 2, maxX: x + largura - TILE / 2 });
+      ovelha.setData({ velocidade: VELOCIDADE_OVELHA, minX: x + TILE / 2, maxX: x + largura - TILE / 2 });
       ovelha.setVelocityX(VELOCIDADE_OVELHA);
     }
     this.sobreOvelha = false;
@@ -357,6 +385,86 @@ export class Fase extends Phaser.Scene {
     this.physics.add.collider(this.kiwi, this.ovelhas, () => {
       this.sobreOvelha = true;
     });
+  }
+
+  /**
+   * Põe a lona de cada esteira sobre o tile de cima do chão, espelhada quando anda para a
+   * esquerda, e a faixa logo acima dela onde o Kiwi apoiado é empurrado no sentido marcado.
+   *
+   * @param {Phaser.Types.Tilemaps.TiledObject[]} areas - As áreas `esteira` do mapa.
+   */
+  criarEsteiras(areas) {
+    this.lonasEsteira = [];
+    this.sentidoEsteira = 0;
+    for (const area of areas) {
+      const { x, y, width: largura } = area;
+      const sentido = sentidoDaEsteira(area);
+      this.lonasEsteira.push(this.add.tileSprite(x, y, largura, TILE, TEXTURA_ESTEIRA).setOrigin(0).setFlipX(sentido < 0));
+      const faixa = this.add.zone(x, y - TILE, largura, TILE).setOrigin(0);
+      this.physics.add.existing(faixa, true);
+      this.physics.add.overlap(this.kiwi, faixa, () => {
+        if (this.kiwi.body.blocked.down) this.sentidoEsteira = sentido;
+      });
+    }
+  }
+
+  /**
+   * Põe a viga de cada guindaste no ponto mais baixo do trajeto, já subindo, presa por um cabo
+   * que desce do alto da tela: plataforma móvel sólida só por cima, que leva o Kiwi montado e
+   * não o fere. A física pausada a segura até o primeiro mover ou pular.
+   *
+   * @param {Phaser.Types.Tilemaps.TiledObject[]} areas - As áreas `guindaste` do mapa.
+   */
+  criarGuindastes(areas) {
+    this.guindastes = this.physics.add.group({ allowGravity: false, immovable: true });
+    for (const { x, y, width: largura, height: altura } of areas) {
+      const baixo = y + altura - TILE;
+      const cabo = this.add.rectangle(x + largura / 2, 0, LARGURA_CABO, baixo, COR_CABO).setOrigin(0.5, 0);
+      const viga = this.add.tileSprite(x, baixo, largura, TILE, TEXTURA_GUINDASTE).setOrigin(0);
+      this.guindastes.add(viga);
+      viga.body.setSize(largura, ALTURA_VIGA, false).setOffset(0, 0);
+      // O grupo zera o atrito; sem ele, a viga não levaria o Kiwi.
+      viga.body.setFrictionX(1);
+      viga.body.checkCollision.down = false;
+      viga.body.checkCollision.left = false;
+      viga.body.checkCollision.right = false;
+      viga.setData({ minY: y, maxY: baixo, cabo, sentido: -1 });
+      viga.body.setVelocityY(-VELOCIDADE_GUINDASTE);
+    }
+    /** @type {Phaser.GameObjects.TileSprite | null} O guindaste em que o Kiwi está montado neste passo. */
+    this.sobreGuindaste = null;
+    this.segundosForaDaViga = Infinity;
+    this.physics.add.collider(this.kiwi, this.guindastes, (_kiwi, viga) => {
+      this.sobreGuindaste = viga;
+    });
+  }
+
+  /**
+   * Vira cada guindaste ao chegar a uma ponta do trajeto, ou ao ser segurado no meio dele, e
+   * estica o cabo até a viga.
+   *
+   * @returns {boolean} Se alguma viga estava travada: algo a segurou neste passo.
+   */
+  moverGuindastes() {
+    let algumaTravada = false;
+    for (const viga of this.guindastes.getChildren()) {
+      const { minY, maxY, cabo, sentido: anterior } = viga.data.values;
+      const { sentido, travada } = moverViga({ y: viga.y, minY, maxY, sentido: anterior, parada: viga.body.velocity.y === 0 });
+      algumaTravada ||= travada;
+      viga.setData('sentido', sentido);
+      viga.body.setVelocityY(sentido * VELOCIDADE_GUINDASTE);
+      cabo.setSize(LARGURA_CABO, viga.y);
+    }
+    return algumaTravada;
+  }
+
+  /**
+   * Rola as lonas das esteiras; a cena espelha a que anda para a esquerda.
+   *
+   * @param {number} dt - Segundos do passo.
+   */
+  rolarEsteiras(dt) {
+    for (const lona of this.lonasEsteira) lona.tilePositionX -= VELOCIDADE_ESTEIRA * dt;
   }
 
   /** @param {Phaser.Types.Physics.Arcade.SpriteWithDynamicBody} predador - O Predador que o Kiwi tocou. */
@@ -510,16 +618,21 @@ export class Fase extends Phaser.Scene {
   passoDoKiwi(dt) {
     if (this.venceu || !this.acoes) return;
     this.patrulhar();
+    this.pularPredadores(dt);
+    this.rolarEsteiras(dt);
+    const vigaTravada = this.moverGuindastes();
     this.piscarInvulneravel(dt);
     const direcao = this.acoes.horizontal;
     const { body } = this.kiwi;
-    const { sobreOvelha } = this;
+    const { sobreOvelha, sentidoEsteira, sobreGuindaste } = this;
     this.sobreOvelha = false;
+    this.sentidoEsteira = 0;
+    this.sobreGuindaste = null;
 
-    body.setVelocityX(direcao * FISICA.velocidadeAndar);
+    body.setVelocityX(direcao * FISICA.velocidadeAndar + sentidoEsteira * VELOCIDADE_ESTEIRA);
     body.setVelocityY(this.controlePulo.atualizar({
       dt,
-      noChao: body.blocked.down || sobreOvelha,
+      noChao: body.blocked.down || sobreOvelha || sobreGuindaste !== null,
       apertou: this.apertouPular,
       segurando: this.acoes.segurandoPulo,
       vy: body.velocity.y,
@@ -531,10 +644,17 @@ export class Fase extends Phaser.Scene {
       this.kiwi.setFlipX(direcao < 0);
       this.cameras.main.setFollowOffset(-OLHAR_A_FRENTE * direcao, 0);
     }
-    this.animar(direcao, body.blocked.down || sobreOvelha);
+    this.animar(direcao, body.blocked.down || sobreOvelha || sobreGuindaste !== null);
 
-    const prensado = sobreOvelha && (body.blocked.up || body.blocked.left || body.blocked.right);
-    if (this.vigiaPreso.atualizar(dt, prensado) || this.kiwi.y > this.limiteQueda) this.voltarAoCheckpoint();
+    // No guindaste, que só anda na vertical, prensado é contra o teto: o Kiwi montado travado
+    // nele; e esmagado na hora se ele segurou a viga ou se ela já o atravessa.
+    this.segundosForaDaViga = sobreGuindaste !== null ? 0 : this.segundosForaDaViga + dt;
+    const montadoHaPouco = this.segundosForaDaViga < SEGUNDOS_MONTADO;
+    const esmagado = (montadoHaPouco && vigaTravada)
+      || esmagadoNoGuindaste(body, this.guindastes.getChildren().map((viga) => viga.body), this.segundosForaDaViga);
+    const prensado = (sobreOvelha && (body.blocked.up || body.blocked.left || body.blocked.right))
+      || (sobreGuindaste !== null && body.blocked.up);
+    if (this.vigiaPreso.atualizar(dt, prensado) || esmagado || this.kiwi.y > this.limiteQueda) this.voltarAoCheckpoint();
   }
 
   /**

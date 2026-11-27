@@ -10,7 +10,8 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { gerarMapa } from '../scripts/gerar-fase.js';
 import { FISICA, PULO, TILE } from '../src/logica/pulo.js';
-import { PREDADORES, buscarFase } from '../src/logica/catalogo.js';
+import { COMPORTAMENTO_PREDADOR, PREDADORES, buscarFase } from '../src/logica/catalogo.js';
+import { NOME, TILESET_PORTO } from '../scripts/tileset.js';
 
 const SCRIPT = fileURLToPath(new URL('../scripts/gerar-fase.js', import.meta.url));
 
@@ -241,19 +242,42 @@ test('a Pecuária versionada tem uma Samambaia-prateada escondida atrás da cama
 });
 
 test('cada Predador vira uma área "predador" com a espécie no tipo, um tile acima do chão entre as colunas da patrulha', () => {
-  const mapa = gerarMapa(descricao({ predadores: [{ especie: 'rato', de: 3, ate: 7 }] }));
+  const mapa = gerarMapa(descricao({ predadores: [{ especie: 'arminho', de: 3, ate: 7 }] }));
   const [predador] = objetosChamados(mapa, 'predador');
 
   assert.deepEqual(
     { type: predador.type, x: predador.x, y: predador.y, width: predador.width, height: predador.height },
-    { type: 'rato', x: 3 * TILE, y: (mapa.height - 3 - 1) * TILE, width: 5 * TILE, height: TILE },
+    { type: 'arminho', x: 3 * TILE, y: (mapa.height - 3 - 1) * TILE, width: 5 * TILE, height: TILE },
   );
 });
 
 test('patrulha de Predador sobre um vão ou um degrau é recusada', () => {
-  assert.throws(() => gerarMapa(descricao({ predadores: [{ especie: 'rato', de: 8, ate: 13 }] })), /predador/i);
+  assert.throws(() => gerarMapa(descricao({ predadores: [{ especie: 'arminho', de: 8, ate: 13 }] })), /predador/i);
   const comDegrau = descricao({ trechos: [{ chao: 5, altura: 3 }, { chao: 5, altura: 4 }] });
-  assert.throws(() => gerarMapa({ ...comDegrau, predadores: [{ especie: 'rato', de: 2, ate: 7 }] }), /predador/i);
+  assert.throws(() => gerarMapa({ ...comDegrau, predadores: [{ especie: 'arminho', de: 2, ate: 7 }] }), /predador/i);
+});
+
+test('patrulha de rato mais longa que a patrulha máxima da espécie é recusada', () => {
+  const { patrulhaMaxima } = COMPORTAMENTO_PREDADOR.rato;
+  assert.doesNotThrow(() => gerarMapa(descricao({ predadores: [{ especie: 'rato', de: 1, ate: patrulhaMaxima }] })));
+  assert.throws(() => gerarMapa(descricao({ predadores: [{ especie: 'rato', de: 1, ate: patrulhaMaxima + 1 }] })), /rato/);
+});
+
+test('o gambá-australiano patrulha sobre uma plataforma alta, um tile acima dela', () => {
+  const plataformas = [{ coluna: 2, largura: 5, alturaSobreChao: 3 }];
+  const mapa = gerarMapa(descricao({ plataformas, predadores: [{ especie: 'gamba', de: 2, ate: 6 }] }));
+  const [predador] = objetosChamados(mapa, 'predador');
+
+  assert.deepEqual(
+    { type: predador.type, x: predador.x, y: predador.y, width: predador.width },
+    { type: 'gamba', x: 2 * TILE, y: (mapa.height - 3 - 3 - 1) * TILE, width: 5 * TILE },
+  );
+});
+
+test('gambá-australiano no chão ou além da ponta da plataforma é recusado', () => {
+  const plataformas = [{ coluna: 2, largura: 5, alturaSobreChao: 3 }];
+  assert.throws(() => gerarMapa(descricao({ predadores: [{ especie: 'gamba', de: 2, ate: 6 }] })), /gamba/);
+  assert.throws(() => gerarMapa(descricao({ plataformas, predadores: [{ especie: 'gamba', de: 2, ate: 7 }] })), /gamba/);
 });
 
 test('a Pecuária versionada tem Predadores das três espécies do catálogo', async () => {
@@ -262,6 +286,27 @@ test('a Pecuária versionada tem Predadores das três espécies do catálogo', a
 
   assert.deepEqual([...new Set(especies)].sort(), [...PREDADORES].sort());
 });
+
+for (const id of ['pecuaria', 'porto']) {
+  test(`no ${id} versionado, o rato patrulha mais curto que os outros e o gambá-australiano fica no alto de uma plataforma`, async () => {
+    const mapa = JSON.parse(await readFile(new URL(`../assets/mapas/${id}.tmj`, import.meta.url), 'utf8'));
+    const predadores = objetosChamados(mapa, 'predador');
+    const da = (especie) => predadores.filter((predador) => predador.type === especie);
+    const outros = predadores.filter((predador) => predador.type !== 'rato');
+    for (const rato of da('rato')) assert.ok(outros.every((outro) => rato.width < outro.width), `rato de ${rato.width / TILE} colunas`);
+
+    const colisao = mapa.layers.find((camada) => camada.name === 'colisao');
+    const solido = (coluna, linha) => colisao.data[linha * mapa.width + coluna] !== 0;
+    assert.ok(da('gamba').length > 0, 'sem gambá-australiano');
+    for (const gamba of da('gamba')) {
+      const linhaApoio = (gamba.y + gamba.height) / TILE;
+      for (let coluna = gamba.x / TILE; coluna < (gamba.x + gamba.width) / TILE; coluna += 1) {
+        assert.ok(solido(coluna, linhaApoio), `gambá sem apoio na coluna ${coluna}`);
+        assert.ok(!solido(coluna, linhaApoio + 1), `gambá no chão, não numa plataforma alta, na coluna ${coluna}`);
+      }
+    }
+  });
+}
 
 test('cada Ovelha vira uma área "ovelha" um tile acima do chão entre as colunas do trajeto', () => {
   const mapa = gerarMapa(descricao({ ovelhas: [{ de: 2, ate: 6 }] }));
@@ -327,4 +372,114 @@ test('a Pecuária versionada tem Ovelhas e Checkpoints a no máximo ~20 s de per
 
   assert.ok(objetosChamados(mapa, 'ovelha').length > 0);
   marcos.slice(1).forEach((x, i) => assert.ok(x - marcos[i] <= maiorDistancia, `${marcos[i]} → ${x}`));
+});
+
+/** O gid na camada `nome` do mapa, na coluna e na linha dadas. */
+function gidEm(mapa, nome, coluna, linha) {
+  return mapa.layers.find((camada) => camada.name === nome).data[linha * mapa.width + coluna];
+}
+
+/** O tileset do mapa a que um gid pertence: o de maior `firstgid` que não passa dele. */
+function tilesetDoGid(mapa, gid) {
+  return mapa.tilesets.filter((tileset) => tileset.firstgid <= gid).sort((a, b) => b.firstgid - a.firstgid)[0];
+}
+
+test('sem piso de cais, o mapa só embute o tileset Kenney', () => {
+  assert.deepEqual(gerarMapa(descricao()).tilesets.map((tileset) => tileset.name), [NOME]);
+});
+
+test('o piso de cais pinta o chão com o concreto do tileset do Porto, embutido depois do Kenney', () => {
+  const mapa = gerarMapa(descricao({ piso: 'cais' }));
+  const topoDoChao = mapa.height - 3;
+  const [kenney, porto] = mapa.tilesets;
+
+  assert.deepEqual(mapa.tilesets.map((tileset) => tileset.name), [NOME, TILESET_PORTO.nome]);
+  assert.equal(porto.firstgid, kenney.firstgid + kenney.tilecount);
+  assert.equal(porto.source, undefined);
+  for (const linha of [topoDoChao, topoDoChao + 1]) {
+    assert.equal(tilesetDoGid(mapa, gidEm(mapa, 'colisao', 4, linha)).name, TILESET_PORTO.nome);
+  }
+});
+
+test('no cais, o vão mostra o mar no fundo, sem nada sólido', () => {
+  const mapa = gerarMapa(descricao({ piso: 'cais' }));
+
+  assert.ok(gidEm(mapa, 'fundo', 10, mapa.height - 1) > 0);
+  assert.equal(gidEm(mapa, 'colisao', 10, mapa.height - 1), 0);
+});
+
+test('a pilha de contêineres é sólida sobre o chão, da altura e largura pedidas, no tileset do Porto', () => {
+  const mapa = gerarMapa(descricao({ piso: 'cais', conteineres: [{ coluna: 3, largura: 2, altura: 3 }] }));
+  const topoDoChao = mapa.height - 3;
+
+  for (const coluna of [3, 4]) {
+    for (let linha = topoDoChao - 3; linha < topoDoChao; linha += 1) {
+      assert.equal(tilesetDoGid(mapa, gidEm(mapa, 'colisao', coluna, linha)).name, TILESET_PORTO.nome, `${coluna},${linha}`);
+    }
+    assert.equal(gidEm(mapa, 'colisao', coluna, topoDoChao - 4), 0);
+  }
+  assert.equal(gidEm(mapa, 'colisao', 5, topoDoChao - 1), 0);
+});
+
+test('pilha de contêineres mais alta que o pulo, ou sobre um vão, é recusada', () => {
+  assert.throws(() => gerarMapa(descricao({ conteineres: [{ coluna: 3, largura: 2, altura: PULO.segurado.altura + 1 }] })), /contêiner/);
+  assert.throws(() => gerarMapa(descricao({ conteineres: [{ coluna: 9, largura: 2, altura: 1 }] })), /contêiner/);
+});
+
+test('cada esteira vira uma área "esteira" no tile de cima do chão, com o sentido na propriedade', () => {
+  const mapa = gerarMapa(descricao({ esteiras: [{ de: 3, ate: 7, sentido: -1 }] }));
+  const [esteira] = objetosChamados(mapa, 'esteira');
+
+  assert.deepEqual(
+    { x: esteira.x, y: esteira.y, width: esteira.width, height: esteira.height, properties: esteira.properties },
+    { x: 3 * TILE, y: (mapa.height - 3) * TILE, width: 5 * TILE, height: TILE, properties: [{ name: 'sentido', type: 'int', value: -1 }] },
+  );
+});
+
+test('esteira sobre um vão, ou com sentido que não é 1 nem -1, é recusada', () => {
+  assert.throws(() => gerarMapa(descricao({ esteiras: [{ de: 8, ate: 13, sentido: 1 }] })), /esteira/);
+  assert.throws(() => gerarMapa(descricao({ esteiras: [{ de: 2, ate: 6, sentido: 0 }] })), /esteira/);
+});
+
+test('cada guindaste vira uma área "guindaste" que vai do topo da viga no alto à base da viga embaixo', () => {
+  const mapa = gerarMapa(descricao({ guindastes: [{ coluna: 3, largura: 2, baixo: 1, alto: 5 }] }));
+  const [guindaste] = objetosChamados(mapa, 'guindaste');
+  const topoDoChao = mapa.height - 3;
+
+  assert.deepEqual(
+    { x: guindaste.x, y: guindaste.y, width: guindaste.width, height: guindaste.height },
+    { x: 3 * TILE, y: (topoDoChao - 5) * TILE, width: 2 * TILE, height: 5 * TILE },
+  );
+});
+
+test('guindaste sobre um vão, baixo demais para subir nele, ou que não sobe, é recusado', () => {
+  assert.throws(() => gerarMapa(descricao({ guindastes: [{ coluna: 9, largura: 2, baixo: 1, alto: 4 }] })), /guindaste/);
+  const baixoDemais = PULO.segurado.altura + 1;
+  assert.throws(() => gerarMapa(descricao({ guindastes: [{ coluna: 3, largura: 2, baixo: baixoDemais, alto: baixoDemais + 2 }] })), /guindaste/);
+  assert.throws(() => gerarMapa(descricao({ guindastes: [{ coluna: 3, largura: 2, baixo: 2, alto: 2 }] })), /guindaste/);
+});
+
+test('guindaste com algo sólido no trajeto ou sobre o Kiwi no alto é recusado: sem vão de esmagamento', () => {
+  const noTrajeto = [{ coluna: 3, largura: 1, alturaSobreChao: 3 }];
+  assert.throws(() => gerarMapa(descricao({ plataformas: noTrajeto, guindastes: [{ coluna: 3, largura: 2, baixo: 1, alto: 4 }] })), /esmag/);
+  const acimaNoAlto = descricao({ trechos: [{ chao: 3, altura: 3 }, { chao: 4, altura: 3 }, { chao: 3, altura: 6 }] });
+  assert.doesNotThrow(() => gerarMapa({ ...acimaNoAlto, guindastes: [{ coluna: 4, largura: 3, baixo: 1, alto: 3 }] }), 'a borda alta ao lado, na altura do topo, é o destino');
+  assert.throws(() => gerarMapa({ ...acimaNoAlto, guindastes: [{ coluna: 4, largura: 3, baixo: 1, alto: 2 }] }), /esmag/, 'a borda ao lado fica sobre o Kiwi no alto');
+});
+
+test('a descrição do Porto cabe no pulo e o .tmj versionado tem cais, guindastes, esteiras nos dois sentidos e a Placa de pular nos Predadores', async () => {
+  const { default: porto } = await import('../scripts/fases/porto.js');
+  assert.doesNotThrow(() => gerarMapa(porto));
+
+  const mapa = JSON.parse(await readFile(new URL('../assets/mapas/porto.tmj', import.meta.url), 'utf8'));
+  const sentidos = objetosChamados(mapa, 'esteira').map((esteira) => esteira.properties.find((p) => p.name === 'sentido').value);
+  const [placa] = objetosChamados(mapa, 'placa');
+  const [primeiro] = objetosChamados(mapa, 'predador').sort((a, b) => a.x - b.x);
+
+  assert.deepEqual(mapa.tilesets.map((tileset) => tileset.name), [NOME, TILESET_PORTO.nome]);
+  assert.ok(objetosChamados(mapa, 'guindaste').length > 0);
+  assert.deepEqual([...new Set(sentidos)].sort(), [-1, 1]);
+  assert.equal(placa.type, 'placa.capturar');
+  assert.ok(placa.x < primeiro.x, 'a Placa vem antes do primeiro Predador');
+  assert.deepEqual([...new Set(objetosChamados(mapa, 'item').map((item) => item.type))].sort(), [...buscarFase('porto').itens].sort());
 });

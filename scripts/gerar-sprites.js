@@ -1,6 +1,6 @@
 /**
  * @file Gera os PNGs próprios na grade de 18×18: o sprite do Kiwi (faixa de quadros),
- * um sprite por Item, o da Samambaia-prateada, um por espécie de Predador, o da Ovelha, os ícones de botão das Placas e o do Silêncio (som cortado), desenhados por código numa paleta de pixel art. Os tiles vêm do Kenney Pixel
+ * um sprite por Item, o da Samambaia-prateada, um por espécie de Predador, o da Ovelha, os ícones de botão das Placas e o do Silêncio (som cortado), o da esteira, o da viga do guindaste e o tileset do Porto (contêineres e cais), desenhados por código numa paleta de pixel art. Os outros tiles vêm do Kenney Pixel
  * Platformer (CC0). Sem dependências além do Node.
  *
  * Uso: `npm run gerar:sprites`.
@@ -12,6 +12,7 @@ import { codificarPng } from './png.js';
 import { TILE } from '../src/logica/pulo.js';
 import { imagemItem, imagemPredador } from '../src/logica/catalogo.js';
 import { BOTOES } from '../src/logica/placa.js';
+import { TILES_PORTO, TILESET_PORTO } from './tileset.js';
 
 const RAIZ_REPO = fileURLToPath(new URL('..', import.meta.url));
 export const IMAGEM_KIWI = 'assets/sprites/kiwi.png';
@@ -102,8 +103,62 @@ function desenhoLeite(x, y) {
   return x === 6 ? COR_ITEM.sombra : COR_ITEM.branco;
 }
 
+/** Paleta da Kiwifruta cortada ao meio: casca parda, polpa verde, miolo claro e sementes. */
+const COR_KIWIFRUTA = Object.freeze({
+  casca: 0x8f563b,
+  polpa: 0x6abe30,
+  polpaClara: 0x99e550,
+  miolo: 0xf4f0c8,
+  semente: 0x222034,
+});
+
+/**
+ * Kiwifruta cortada ao meio: um oval de casca parda com a polpa verde, o miolo claro e um
+ * anel de sementes pretas em volta dele.
+ *
+ * @type {Desenho}
+ */
+function desenhoKiwifruta(x, y) {
+  const raio = Math.hypot((x + 0.5 - 9) / 7.5, (y + 0.5 - 9) / 8);
+  if (raio > 1) return null;
+  if (raio > 0.85) return COR_KIWIFRUTA.casca;
+  if (raio <= 0.25) return COR_KIWIFRUTA.miolo;
+  // Oito sementes no anel em volta do miolo, uma a cada 45°.
+  const oitavos = Math.atan2(y + 0.5 - 9, x + 0.5 - 9) / (Math.PI / 4);
+  const semente = raio > 0.35 && raio <= 0.5 && Math.abs(oitavos - Math.round(oitavos)) < 0.2;
+  if (semente) return COR_KIWIFRUTA.semente;
+  return raio <= 0.6 ? COR_KIWIFRUTA.polpaClara : COR_KIWIFRUTA.polpa;
+}
+
+/** Paleta da caixa de exportação: madeira com tábuas, contorno escuro e a faixa da etiqueta. */
+const COR_CAIXA = Object.freeze({
+  madeira: 0xd9a066,
+  tabua: 0x8f563b,
+  contorno: 0x45283c,
+  etiqueta: 0xfbf236,
+});
+
+/**
+ * Caixa de exportação: caixote de madeira com borda, tábuas em X e uma etiqueta amarela.
+ *
+ * @type {Desenho}
+ */
+function desenhoCaixa(x, y) {
+  if (x < 2 || x > 15 || y < 3 || y > 16) return null;
+  if (x === 2 || x === 15 || y === 3 || y === 16) return COR_CAIXA.contorno;
+  if (x === 3 || x === 14 || y === 4 || y === 15) return COR_CAIXA.tabua;
+  if (y >= 8 && y <= 10 && x >= 6 && x <= 11) return COR_CAIXA.etiqueta;
+  if (x - 3 === y - 4 || x - 3 === 15 - y) return COR_CAIXA.tabua;
+  return COR_CAIXA.madeira;
+}
+
 /** Desenho de cada Item, pelo id do catálogo. */
-export const DESENHOS_ITENS = Object.freeze({ la: desenhoLa, leite: desenhoLeite });
+export const DESENHOS_ITENS = Object.freeze({
+  la: desenhoLa,
+  leite: desenhoLeite,
+  kiwifruta: desenhoKiwifruta,
+  caixa: desenhoCaixa,
+});
 
 export const IMAGEM_SAMAMBAIA = 'assets/sprites/samambaia.png';
 
@@ -336,6 +391,119 @@ function desenhoSilencio(x, y) {
   return naFaixa && (x - 12 === y - 6 || x - 12 === 10 - y) ? COR_SILENCIO.corte : null;
 }
 
+/** Cores dos contêineres: a chapa e a sombra das nervuras, pelo id do tile no tileset do Porto. */
+const CORES_CONTEINER = Object.freeze({
+  [TILES_PORTO.conteinerVermelho]: [0xac3232, 0x76262a],
+  [TILES_PORTO.conteinerAzul]: [0x5b6ee1, 0x3f3f74],
+  [TILES_PORTO.conteinerVerde]: [0x37946e, 0x1f5c45],
+});
+const COR_TRILHO_CONTEINER = 0x222034;
+
+/**
+ * Um contêiner de navio visto de lado, num tile: chapa com nervuras verticais e trilhos escuros
+ * em cima e embaixo, para que a pilha mostre onde um contêiner acaba e o outro começa.
+ *
+ * @param {number} chapa - Cor da chapa.
+ * @param {number} nervura - Cor da sombra das nervuras.
+ * @returns {Desenho} O tile.
+ */
+function desenhoConteiner(chapa, nervura) {
+  return (x, y) => {
+    if (y === 0 || y === TILE - 1) return COR_TRILHO_CONTEINER;
+    return x % 3 === 2 ? nervura : chapa;
+  };
+}
+
+/** Paleta do cais: concreto claro, a sombra dele e a faixa zebrada da borda. */
+const COR_CAIS = Object.freeze({
+  concreto: 0x9badb7,
+  sombra: 0x847e87,
+  zebraClara: 0xfbf236,
+  zebraEscura: 0x222034,
+});
+
+/**
+ * Topo do cais: faixa zebrada amarela e preta na borda de cima e concreto embaixo.
+ *
+ * @type {Desenho}
+ */
+function desenhoConcreto(x, y) {
+  if (y <= 2) return Math.floor((x + y) / 3) % 2 === 0 ? COR_CAIS.zebraClara : COR_CAIS.zebraEscura;
+  return (x * 7 + y * 5) % 11 === 0 ? COR_CAIS.sombra : COR_CAIS.concreto;
+}
+
+/**
+ * O cais por baixo do topo: concreto mais escuro, com juntas entre os blocos.
+ *
+ * @type {Desenho}
+ */
+function desenhoConcretoBase(x, y) {
+  if (y === TILE - 1 || x === 0) return COR_CAIS.zebraEscura;
+  return (x * 5 + y * 3) % 13 === 0 ? COR_CAIS.concreto : COR_CAIS.sombra;
+}
+
+export const IMAGEM_ESTEIRA = 'assets/sprites/esteira.png';
+
+/** Paleta da esteira: lona escura, rolos cinza e as setas amarelas do sentido. */
+const COR_ESTEIRA = Object.freeze({
+  lona: 0x3f3f4a,
+  borda: 0x222034,
+  rolo: 0x9badb7,
+  seta: 0xfbf236,
+});
+
+/**
+ * Esteira, num tile que se repete: lona escura com uma seta ">" amarela apontando para a
+ * direita (a cena espelha a esteira que anda para a esquerda) e rolos embaixo.
+ *
+ * @type {Desenho}
+ */
+function desenhoEsteira(x, y) {
+  if (y === 0 || y === 7) return COR_ESTEIRA.borda;
+  if (y < 7) {
+    // A ponta da seta, mais à direita, fica nas linhas do meio.
+    const seta = 3 - Math.abs(y - 3.5);
+    return x >= 6 + seta && x <= 8 + seta ? COR_ESTEIRA.seta : COR_ESTEIRA.lona;
+  }
+  const rolo = Math.hypot(x + 0.5 - 9, y + 0.5 - 12) <= 4.5;
+  if (rolo) return Math.hypot(x + 0.5 - 9, y + 0.5 - 12) <= 1.5 ? COR_ESTEIRA.borda : COR_ESTEIRA.rolo;
+  return y >= 16 ? COR_ESTEIRA.borda : COR_ESTEIRA.lona;
+}
+
+export const IMAGEM_GUINDASTE = 'assets/sprites/guindaste.png';
+
+/** Altura da viga do guindaste no sprite, em pixels: o resto do quadro fica transparente. */
+const ALTURA_VIGA = 8;
+
+/** Paleta da viga do guindaste: laranja de obra com a treliça escura. */
+const COR_VIGA = Object.freeze({
+  laranja: 0xdf7126,
+  sombra: 0x8f3e1a,
+  contorno: 0x45283c,
+});
+
+/**
+ * Viga do guindaste, num tile que se repete: banzo laranja em cima e embaixo, treliça em
+ * zigue-zague no meio e o resto transparente.
+ *
+ * @type {Desenho}
+ */
+function desenhoGuindaste(x, y) {
+  if (y >= ALTURA_VIGA) return null;
+  if (y === 0 || y === ALTURA_VIGA - 1) return COR_VIGA.contorno;
+  if (y === 1 || y === ALTURA_VIGA - 2) return COR_VIGA.laranja;
+  const diagonal = (x % 9) - 1 === y - 2 || 8 - (x % 9) === y - 1;
+  return diagonal ? COR_VIGA.laranja : COR_VIGA.sombra;
+}
+
+/** Desenho de cada tile do Porto, na ordem dos ids do tileset. */
+const DESENHOS_TILES_PORTO = Object.freeze([
+  ...[TILES_PORTO.conteinerVermelho, TILES_PORTO.conteinerAzul, TILES_PORTO.conteinerVerde]
+    .map((id) => desenhoConteiner(...CORES_CONTEINER[id])),
+  desenhoConcreto,
+  desenhoConcretoBase,
+]);
+
 /**
  * Junta desenhos 18×18 numa grade, da esquerda para a direita e de cima para baixo.
  *
@@ -383,4 +551,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   console.log(`Gerado ${IMAGEM_BOTOES}`);
   await gravar(IMAGEM_SILENCIO, montarGrade([desenhoSilencio], 1));
   console.log(`Gerado ${IMAGEM_SILENCIO}`);
+  await gravar(TILESET_PORTO.imagem, montarGrade(DESENHOS_TILES_PORTO, TILESET_PORTO.colunas));
+  await gravar(IMAGEM_ESTEIRA, montarGrade([desenhoEsteira], 1));
+  console.log(`Gerado ${IMAGEM_ESTEIRA}`);
+  await gravar(IMAGEM_GUINDASTE, montarGrade([desenhoGuindaste], 1));
+  console.log(`Gerado ${IMAGEM_GUINDASTE}`);
+  console.log(`Gerado ${TILESET_PORTO.imagem}`);
 }

@@ -266,3 +266,11 @@ test('o mapa de cada Fase do catálogo passa no Validador de Fase', () => {
   const relatorio = problemas.map(({ fase, mensagem }) => `- ${fase}: ${mensagem}`).join('\n');
   assert.equal(problemas.length, 0, `Fases com problemas:\n${relatorio}`);
 });
+
+test('esteira sem sentido 1 ou -1 é problema', () => {
+  const mapa = mapaValido();
+  const esteira = (id, sentido) => ({ id, name: 'esteira', type: '', x: 18, y: 72, width: 36, height: 18, properties: [{ name: 'sentido', type: 'int', value: sentido }] });
+  objetos(mapa).push(esteira(8, 1), esteira(9, -1), esteira(10, 2));
+
+  assert.deepEqual(regras(validarFase(faseValida(), mapa, CONTEXTO)), ['esteira-sentido']);
+});

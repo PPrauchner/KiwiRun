@@ -29,6 +29,8 @@ export default {
   'predador.rato': 'Rato',
   'item.la': 'Lã',
   'item.leite': 'Leite',
+  'item.kiwifruta': 'Kiwifruta',
+  'item.caixa': 'Caixa de exportação',
   'numero.separador_decimal': ',',
   'placar.titulo': 'Placar',
   'placar.novo_recorde': 'Novo Recorde!',
@@ -85,4 +87,7 @@ export default {
   'fato.pecuaria.1': 'A Halter usa coleiras GPS solares que guiam o gado com som e vibração, sem cercas.',
   'fato.pecuaria.2': 'A Halter já vendeu mais de 1 milhão de coleiras para mais de 2 mil fazendas.',
   'fato.pecuaria.3': 'Em 2026, a startup de AgTech Halter foi avaliada em 2 bilhões de dólares.',
+  'fato.porto.1': 'A NZ deve exportar o recorde de 64,3 bi de dólares da NZ em alimentos e fibras em 2025-26.',
+  'fato.porto.2': 'Laticínios rendem cerca de 45 por cento das exportações de alimentos e fibras da NZ.',
+  'fato.porto.3': 'A NZ exportou volumes recordes de Kiwifruta e maçã em 2025-26.',
 };

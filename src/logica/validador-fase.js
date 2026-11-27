@@ -4,11 +4,13 @@
  *
  * Objetos da Fase: `inicio`, `fim`, `item` (id do Item no tipo), `samambaia` (chave do Fato
  * no tipo), `predador` (espécie no tipo), `placa` (chave do texto no tipo, ação na
- * propriedade `acao`) e `ovelha`. Vãos e degraus não são conferidos aqui: quem os
- * recusa é o gerador de Fase.
+ * propriedade `acao`), `ovelha`, `esteira` (sentido 1 ou -1 na propriedade `sentido`) e
+ * `guindaste`. Vãos, degraus e vãos de esmagamento não são conferidos aqui: quem os recusa é o
+ * gerador de Fase.
  */
 
 import { chaveNomePredador } from './catalogo.js';
+import { sentidoDaEsteira, SENTIDOS_ESTEIRA } from './esteira.js';
 import { acaoDaPlaca, BOTOES_DA_ACAO } from './placa.js';
 
 /**
@@ -98,6 +100,10 @@ export function validarFase(fase, mapa, contexto) {
     }
     const acao = acaoDaPlaca(placa);
     if (!Object.hasOwn(BOTOES_DA_ACAO, acao ?? '')) problema('placa-acao', `Placa ${placa.type} ensina ${acao ?? 'nenhuma ação'}, sem ícone de botão`);
+  }
+  for (const esteira of comNome('esteira')) {
+    const sentido = sentidoDaEsteira(esteira);
+    if (!SENTIDOS_ESTEIRA.includes(sentido)) problema('esteira-sentido', `esteira ${esteira.id} com sentido ${sentido}, e não 1 ou -1`);
   }
   for (const especie of new Set(comNome('predador').map((predador) => predador.type))) {
     if (!contexto.predadores.includes(especie)) {
